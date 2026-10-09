@@ -8,4 +8,17 @@ class Employee < ApplicationRecord
 
   validates :employee_number, presence: true, uniqueness: true
   validates :name, presence: true
+
+  def current_salary(as_of = Date.current)
+    if salaries.loaded?
+      salaries.select { |s| s.effective_from.present? && s.effective_from <= as_of }
+              .max_by(&:effective_from)
+    else
+      salaries.where("effective_from <= ?", as_of).order(effective_from: :desc).first
+    end
+  end
+
+  def current_annual_salary(as_of = Date.current)
+    current_salary(as_of)&.annual_salary
+  end
 end

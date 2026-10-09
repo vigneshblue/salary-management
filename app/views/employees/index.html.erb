@@ -1,0 +1,47 @@
+<% content_for :title, "Employees — ACME HR" %>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Employees</h1>
+    <p class="page-subtitle">View and manage employee information</p>
+  </div>
+</div>
+
+<%= turbo_frame_tag "employees_frame", data: { turbo_action: "advance" } do %>
+  <div class="card table-card">
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th class="col-index">#</th>
+            <th>Employee ID</th>
+            <th>Name</th>
+            <th>Country</th>
+            <th>Department</th>
+            <th class="col-salary">Current Salary</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if @employees.empty? %>
+            <tr>
+              <td colspan="6" class="text-center empty-state">No employees found.</td>
+            </tr>
+          <% else %>
+            <% @employees.each_with_index do |employee, idx| %>
+              <tr id="<%= dom_id(employee) %>">
+                <td class="col-index text-muted"><%= (@page - 1) * @per_page + idx + 1 %></td>
+                <td class="font-medium employee-number"><%= employee.employee_number %></td>
+                <td class="employee-name"><%= employee.name %></td>
+                <td class="employee-country"><%= employee.country.name %></td>
+                <td class="employee-department"><%= employee.department.name %></td>
+                <td class="col-salary employee-salary"><%= format_salary(employee.current_salary, employee.country) %></td>
+              </tr>
+            <% end %>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+
+    <%= render "pagination" %>
+  </div>
+<% end %>
