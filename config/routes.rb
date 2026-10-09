@@ -14,4 +14,5 @@ Rails.application.routes.draw do
 
   resources :employees, only: [ :index, :show ]
   resources :attendances, only: [ :index, :new, :create ]
+  resources :monthly_salaries, only: [ :index, :create ]
 end

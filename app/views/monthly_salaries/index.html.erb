@@ -1,0 +1,197 @@
+<% content_for :title, "Monthly Salary Processing — ACME HR" %>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Monthly Salaries</h1>
+    <p class="page-subtitle">Calculate and review monthly salaries based on attendance</p>
+  </div>
+</div>
+
+<% if flash[:notice] %>
+  <div class="alert alert-success">
+    <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+    </svg>
+    <span><%= flash[:notice] %></span>
+  </div>
+<% end %>
+
+<% if flash[:alert] %>
+  <div class="alert alert-danger">
+    <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="12" y1="8" x2="12" y2="12"></line>
+      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+    </svg>
+    <span><%= flash[:alert] %></span>
+  </div>
+<% end %>
+
+<div class="card mb-6">
+  <div class="card-header border-b p-4 bg-gray-50">
+    <h2 class="font-semibold text-lg m-0">Calculate Monthly Salaries</h2>
+  </div>
+  <div class="card-body p-6">
+    <p class="text-muted mb-6">
+      Select a period to calculate monthly salaries. Each employee's salary is derived from their latest annual salary effective on or before the 1st of the selected month, adjusted for present vs. working days:
+      <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">monthly_salary = annual_salary / 12</code>,
+      <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">payable_amount = monthly_salary * present_days / working_days</code>.
+      All newly calculated records are set to <strong>Pending</strong>.
+    </p>
+
+    <%= form_with url: monthly_salaries_path, method: :post, class: "attendance-form", local: true do |f| %>
+      <div class="attendance-form-grid">
+        <div class="form-group">
+          <%= f.label :year, "Year", class: "form-label" %>
+          <%= f.select :year,
+                options_for_select((2020..2030).to_a.reverse, @year),
+                {},
+                class: "filter-select w-full" %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :month, "Month", class: "form-label" %>
+          <%= f.select :month,
+                options_for_select((1..12).map { |m| [Date::MONTHNAMES[m], m] }, @month),
+                {},
+                class: "filter-select w-full" %>
+        </div>
+
+        <div class="form-group action-group">
+          <%= f.submit "Calculate Salaries", class: "btn btn-primary" %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<div class="card mb-6">
+  <div class="card-header border-b p-4 bg-gray-50">
+    <h2 class="font-semibold text-lg m-0">Period Summary: <%= Date::MONTHNAMES[@month] %> <%= @year %></h2>
+  </div>
+  <div class="card-body p-6">
+    <div class="grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+      <div class="stat-card">
+        <div class="text-sm text-muted mb-1">Total Employees in System</div>
+        <div class="stat-value"><%= number_with_delimiter(@total_employees) %></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="text-sm text-muted mb-1">Attendance Generated</div>
+        <div class="stat-value">
+          <%= number_with_delimiter(@attendances_count) %>
+          <% if @total_employees.positive? && @attendances_count == @total_employees %>
+            <span class="badge badge-success">Ready</span>
+          <% elsif @attendances_count.positive? %>
+            <span class="badge badge-warning">Incomplete</span>
+          <% else %>
+            <span class="badge badge-muted">Missing</span>
+          <% end %>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="text-sm text-muted mb-1">Salaries Calculated</div>
+        <div class="stat-value">
+          <%= number_with_delimiter(@salaries_count) %>
+          <% if @total_employees.positive? && @salaries_count == @total_employees %>
+            <span class="badge badge-success">Complete</span>
+          <% elsif @salaries_count.positive? %>
+            <span class="badge badge-warning">Partial</span>
+          <% else %>
+            <span class="badge badge-muted">Not Calculated</span>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <% if @currency_totals.any? %>
+      <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+        <h4 class="font-semibold text-sm text-muted mb-2" style="text-transform: uppercase; letter-spacing: 0.05em;">Total Payable by Currency</h4>
+        <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+          <% @currency_totals.each do |currency, total| %>
+            <div class="stat-card" style="min-width: 180px;">
+              <div class="text-sm text-muted mb-1"><%= currency %> Total</div>
+              <div class="stat-value font-medium" style="font-size: 18px;">
+                <%= EmployeesHelper::CURRENCY_SYMBOLS[currency] || "#{currency} " %><%= number_with_precision(total, precision: 2, delimiter: ",") %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<% if @sample_salaries.any? %>
+  <div class="card table-card mb-6">
+    <div class="card-header border-b p-4 bg-gray-50">
+      <h3 class="font-semibold text-lg m-0">Sample Monthly Salary Preview (<%= Date::MONTHNAMES[@month] %> <%= @year %>)</h3>
+    </div>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Employee ID</th>
+            <th>Name</th>
+            <th>Country</th>
+            <th>Department</th>
+            <th class="col-salary">Monthly Base</th>
+            <th class="col-salary">Payable Amount</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @sample_salaries.each do |ms| %>
+            <tr id="<%= dom_id(ms) %>">
+              <td class="font-medium employee-number"><%= ms.employee.employee_number %></td>
+              <td><%= link_to ms.employee.name, employee_path(ms.employee), class: "font-medium text-primary hover:underline" %></td>
+              <td><%= ms.employee.country.name %></td>
+              <td><%= ms.employee.department.name %></td>
+              <td class="col-salary"><%= format_salary(ms.monthly_salary, ms.employee.country) %></td>
+              <td class="col-salary font-medium"><%= format_salary(ms.payable_amount, ms.employee.country) %></td>
+              <td>
+                <span class="badge badge-warning"><%= ms.status %></span>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% end %>
+
+<% if @periods.any? %>
+  <div class="card table-card">
+    <div class="card-header border-b p-4 bg-gray-50">
+      <h3 class="font-semibold text-lg m-0">All Recorded Periods</h3>
+    </div>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Year</th>
+            <th>Month</th>
+            <th>Salaries Calculated</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @periods.each do |p| %>
+            <tr>
+              <td class="font-medium"><%= Date::MONTHNAMES[p.month] %> <%= p.year %></td>
+              <td><%= p.year %></td>
+              <td><%= p.month %></td>
+              <td><%= number_with_delimiter(p.monthly_salaries.count) %></td>
+              <td>
+                <%= link_to "View Period", monthly_salaries_path(year: p.year, month: p.month), class: "btn btn-ghost btn-sm" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% end %>
