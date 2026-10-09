@@ -3,7 +3,7 @@
 <div class="page-header">
   <div>
     <h1 class="page-title">Monthly Salaries</h1>
-    <p class="page-subtitle">Calculate and review monthly salaries based on attendance</p>
+    <p class="page-subtitle">Calculate and process monthly salaries based on attendance</p>
   </div>
 </div>
 
@@ -30,39 +30,48 @@
 
 <div class="card mb-6">
   <div class="card-header border-b p-4 bg-gray-50">
-    <h2 class="font-semibold text-lg m-0">Calculate Monthly Salaries</h2>
+    <h2 class="font-semibold text-lg m-0">Select Period & Actions</h2>
   </div>
   <div class="card-body p-6">
     <p class="text-muted mb-6">
-      Select a period to calculate monthly salaries. Each employee's salary is derived from their latest annual salary effective on or before the 1st of the selected month, adjusted for present vs. working days:
-      <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">monthly_salary = annual_salary / 12</code>,
-      <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">payable_amount = monthly_salary * present_days / working_days</code>.
-      All newly calculated records are set to <strong>Pending</strong>.
+      Select a period to calculate or process monthly salaries. Calculating salaries creates <strong>Pending</strong> records based on attendance and annual salary. Processing salaries transitions all eligible <strong>Pending</strong> records to <strong>Paid</strong> without recalculating or modifying amounts.
     </p>
 
-    <%= form_with url: monthly_salaries_path, method: :post, class: "attendance-form", local: true do |f| %>
-      <div class="attendance-form-grid">
-        <div class="form-group">
-          <%= f.label :year, "Year", class: "form-label" %>
-          <%= f.select :year,
-                options_for_select((2020..2030).to_a.reverse, @year),
-                {},
-                class: "filter-select w-full" %>
-        </div>
+    <div style="display: flex; gap: 24px; align-items: flex-end; flex-wrap: wrap;">
+      <%= form_with url: monthly_salaries_path, method: :post, class: "attendance-form", local: true do |f| %>
+        <div class="attendance-form-grid">
+          <div class="form-group">
+            <%= f.label :year, "Year", class: "form-label" %>
+            <%= f.select :year,
+                  options_for_select((2020..2030).to_a.reverse, @year),
+                  {},
+                  class: "filter-select w-full" %>
+          </div>
 
-        <div class="form-group">
-          <%= f.label :month, "Month", class: "form-label" %>
-          <%= f.select :month,
-                options_for_select((1..12).map { |m| [Date::MONTHNAMES[m], m] }, @month),
-                {},
-                class: "filter-select w-full" %>
-        </div>
+          <div class="form-group">
+            <%= f.label :month, "Month", class: "form-label" %>
+            <%= f.select :month,
+                  options_for_select((1..12).map { |m| [Date::MONTHNAMES[m], m] }, @month),
+                  {},
+                  class: "filter-select w-full" %>
+          </div>
 
-        <div class="form-group action-group">
-          <%= f.submit "Calculate Salaries", class: "btn btn-primary" %>
+          <div class="form-group action-group">
+            <%= f.submit "Calculate Salaries", class: "btn btn-primary" %>
+          </div>
         </div>
-      </div>
-    <% end %>
+      <% end %>
+
+      <% if @pending_count.positive? %>
+        <%= form_with url: process_salaries_monthly_salaries_path, method: :post, local: true do |f| %>
+          <%= f.hidden_field :year, value: @year %>
+          <%= f.hidden_field :month, value: @month %>
+          <div class="form-group action-group">
+            <%= f.submit "Process Pending Salaries", class: "btn btn-success", style: "background-color: #10b981; border-color: #10b981; color: white;" %>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
   </div>
 </div>
 
@@ -78,7 +87,7 @@
       </div>
 
       <div class="stat-card">
-        <div class="text-sm text-muted mb-1">Attendance Generated</div>
+        <div class="text-sm text-muted mb-1">Attendance Status</div>
         <div class="stat-value">
           <%= number_with_delimiter(@attendances_count) %>
           <% if @total_employees.positive? && @attendances_count == @total_employees %>
@@ -104,6 +113,21 @@
           <% end %>
         </div>
       </div>
+
+      <div class="stat-card">
+        <div class="text-sm text-muted mb-1">Processing Status</div>
+        <div class="stat-value">
+          <% if @salaries_count.zero? %>
+            <span class="badge badge-muted">Not Started</span>
+          <% elsif @pending_count.zero? && @paid_count.positive? %>
+            <span class="badge badge-success">All Paid</span>
+          <% elsif @paid_count.zero? && @pending_count.positive? %>
+            <span class="badge badge-warning">All Pending</span>
+          <% else %>
+            <span class="badge badge-warning">Mixed (<%= @paid_count %> Paid / <%= @pending_count %> Pending)</span>
+          <% end %>
+        </div>
+      </div>
     </div>
 
     <% if @currency_totals.any? %>
@@ -111,10 +135,19 @@
         <h4 class="font-semibold text-sm text-muted mb-2" style="text-transform: uppercase; letter-spacing: 0.05em;">Total Payable by Currency</h4>
         <div style="display: flex; gap: 16px; flex-wrap: wrap;">
           <% @currency_totals.each do |currency, total| %>
-            <div class="stat-card" style="min-width: 180px;">
+            <% paid_val = @currency_totals_paid[currency] || 0 %>
+            <% pending_val = @currency_totals_pending[currency] || 0 %>
+            <% symbol = EmployeesHelper::CURRENCY_SYMBOLS[currency] || "#{currency} " %>
+            <div class="stat-card" style="min-width: 220px;">
               <div class="text-sm text-muted mb-1"><%= currency %> Total</div>
               <div class="stat-value font-medium" style="font-size: 18px;">
-                <%= EmployeesHelper::CURRENCY_SYMBOLS[currency] || "#{currency} " %><%= number_with_precision(total, precision: 2, delimiter: ",") %>
+                <%= symbol %><%= number_with_precision(total, precision: 2, delimiter: ",") %>
+              </div>
+              <div class="text-sm text-muted" style="margin-top: 6px; font-size: 12px;">
+                <span style="color: #10b981;">Paid: <%= symbol %><%= number_with_precision(paid_val, precision: 2, delimiter: ",") %></span>
+                <% if pending_val.positive? %>
+                  &bull; <span style="color: #f59e0b;">Pending: <%= symbol %><%= number_with_precision(pending_val, precision: 2, delimiter: ",") %></span>
+                <% end %>
               </div>
             </div>
           <% end %>
@@ -152,7 +185,11 @@
               <td class="col-salary"><%= format_salary(ms.monthly_salary, ms.employee.country) %></td>
               <td class="col-salary font-medium"><%= format_salary(ms.payable_amount, ms.employee.country) %></td>
               <td>
-                <span class="badge badge-warning"><%= ms.status %></span>
+                <% if ms.status == MonthlySalary::STATUS_PAID %>
+                  <span class="badge badge-success"><%= ms.status %></span>
+                <% else %>
+                  <span class="badge badge-warning"><%= ms.status %></span>
+                <% end %>
               </td>
             </tr>
           <% end %>
@@ -174,17 +211,25 @@
             <th>Period</th>
             <th>Year</th>
             <th>Month</th>
-            <th>Salaries Calculated</th>
+            <th>Salaries (Total / Paid / Pending)</th>
             <th>Action</th>
           </tr>
         </thead>
         <tbody>
           <% @periods.each do |p| %>
+            <% p_total = p.monthly_salaries.count %>
+            <% p_paid = p.monthly_salaries.where(status: MonthlySalary::STATUS_PAID).count %>
+            <% p_pending = p.monthly_salaries.where(status: MonthlySalary::STATUS_PENDING).count %>
             <tr>
               <td class="font-medium"><%= Date::MONTHNAMES[p.month] %> <%= p.year %></td>
               <td><%= p.year %></td>
               <td><%= p.month %></td>
-              <td><%= number_with_delimiter(p.monthly_salaries.count) %></td>
+              <td>
+                <%= number_with_delimiter(p_total) %>
+                <% if p_total.positive? %>
+                  <span class="text-muted" style="font-size: 12px;">(<%= p_paid %> Paid / <%= p_pending %> Pending)</span>
+                <% end %>
+              </td>
               <td>
                 <%= link_to "View Period", monthly_salaries_path(year: p.year, month: p.month), class: "btn btn-ghost btn-sm" %>
               </td>

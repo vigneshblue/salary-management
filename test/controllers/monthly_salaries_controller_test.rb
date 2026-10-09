@@ -188,4 +188,150 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
     assert_select ".stat-card", text: /INR Total/
     assert_select ".stat-card", text: /₹100,000\.00/
   end
+
+  # ==================================
+  # Salary Processing Tests
+  # ==================================
+
+  test "processing changes Pending records to Paid" do
+    emp = Employee.create!(employee_number: "EMP801", name: "Proc Test", country: @us, department: @engineering)
+    emp.salaries.create!(annual_salary: 60_000, effective_from: Date.new(2026, 1, 1))
+
+    period = Period.create!(year: 2026, month: 10)
+    Attendance.create!(employee: emp, period: period, working_days: 20, present_days: 20)
+
+    # First calculate salaries (creates Pending record)
+    post monthly_salaries_url, params: { year: 2026, month: 10 }
+    ms = MonthlySalary.find_by!(employee: emp, period: period)
+    assert_equal "Pending", ms.status
+
+    # Now process pending salaries
+    post process_salaries_monthly_salaries_url, params: { year: 2026, month: 10 }
+    assert_redirected_to monthly_salaries_path(year: "2026", month: "10")
+    follow_redirect!
+    assert_select ".alert-success", text: /Successfully processed 1 pending salaries/
+
+    ms.reload
+    assert_equal "Paid", ms.status
+  end
+
+  test "already-Paid records remain unchanged and are not counted as newly processed" do
+    emp1 = Employee.create!(employee_number: "EMP802", name: "User Paid", country: @us, department: @engineering)
+    emp2 = Employee.create!(employee_number: "EMP803", name: "User Pend", country: @us, department: @engineering)
+    period = Period.create!(year: 2026, month: 11)
+
+    MonthlySalary.create!(employee: emp1, period: period, monthly_salary: 5000, payable_amount: 5000, status: "Paid")
+    MonthlySalary.create!(employee: emp2, period: period, monthly_salary: 4000, payable_amount: 4000, status: "Pending")
+
+    post process_salaries_monthly_salaries_url, params: { year: 2026, month: 11 }
+    assert_redirected_to monthly_salaries_path(year: "2026", month: "11")
+    follow_redirect!
+    assert_select ".alert-success", text: /Successfully processed 1 pending salaries/
+
+    assert_equal "Paid", MonthlySalary.find_by(employee: emp1, period: period).status
+    assert_equal "Paid", MonthlySalary.find_by(employee: emp2, period: period).status
+  end
+
+  test "salary amounts are unchanged during processing" do
+    emp = Employee.create!(employee_number: "EMP804", name: "User Unchanged", country: @us, department: @engineering)
+    period = Period.create!(year: 2026, month: 12)
+
+    MonthlySalary.create!(
+      employee: emp,
+      period: period,
+      monthly_salary: BigDecimal("5432.10"),
+      payable_amount: BigDecimal("4321.09"),
+      status: "Pending"
+    )
+
+    post process_salaries_monthly_salaries_url, params: { year: 2026, month: 12 }
+
+    ms = MonthlySalary.find_by!(employee: emp, period: period)
+    assert_equal "Paid", ms.status
+    assert_equal BigDecimal("5432.10"), ms.monthly_salary
+    assert_equal BigDecimal("4321.09"), ms.payable_amount
+  end
+
+  test "repeated processing is safe and reports zero newly processed records when appropriate" do
+    emp = Employee.create!(employee_number: "EMP805", name: "User Repeat", country: @us, department: @engineering)
+    period = Period.create!(year: 2026, month: 1)
+    MonthlySalary.create!(employee: emp, period: period, monthly_salary: 5000, payable_amount: 5000, status: "Paid")
+
+    post process_salaries_monthly_salaries_url, params: { year: 2026, month: 1 }
+    assert_redirected_to monthly_salaries_path(year: "2026", month: "1")
+    follow_redirect!
+    assert_select ".alert-success", text: /already processed and marked as Paid \(0 pending records newly processed\)/
+  end
+
+  test "only records for the selected period are processed" do
+    emp = Employee.create!(employee_number: "EMP806", name: "User MultiPeriod", country: @us, department: @engineering)
+    p_target = Period.create!(year: 2025, month: 5)
+    p_other = Period.create!(year: 2025, month: 6)
+
+    ms_target = MonthlySalary.create!(employee: emp, period: p_target, monthly_salary: 5000, payable_amount: 5000, status: "Pending")
+    ms_other = MonthlySalary.create!(employee: emp, period: p_other, monthly_salary: 5000, payable_amount: 5000, status: "Pending")
+
+    post process_salaries_monthly_salaries_url, params: { year: 2025, month: 5 }
+
+    assert_equal "Paid", ms_target.reload.status
+    assert_equal "Pending", ms_other.reload.status
+  end
+
+  test "an empty period or period with no pending records is handled gracefully" do
+    Period.create!(year: 2025, month: 7)
+
+    post process_salaries_monthly_salaries_url, params: { year: 2025, month: 7 }
+    assert_redirected_to monthly_salaries_path(year: "2025", month: "7")
+    follow_redirect!
+    assert_select ".alert-danger", text: /No pending salary records found to process for July 2025/
+  end
+
+  test "currency totals are reported separately upon processing" do
+    emp_us = Employee.create!(employee_number: "EMP807", name: "US Emp", country: @us, department: @engineering)
+    emp_in = Employee.create!(employee_number: "EMP808", name: "IN Emp", country: @in, department: @engineering)
+    period = Period.create!(year: 2025, month: 8)
+
+    MonthlySalary.create!(employee: emp_us, period: period, monthly_salary: 5000, payable_amount: 5000, status: "Pending")
+    MonthlySalary.create!(employee: emp_in, period: period, monthly_salary: 100_000, payable_amount: 100_000, status: "Pending")
+
+    post process_salaries_monthly_salaries_url, params: { year: 2025, month: 8 }
+    assert_redirected_to monthly_salaries_path(year: "2025", month: "8")
+    follow_redirect!
+
+    assert_select ".alert-success", text: /\$5,000\.00/
+    assert_select ".alert-success", text: /₹100,000\.00/
+  end
+
+  test "a database failure rolls back the operation" do
+    emp = Employee.create!(employee_number: "EMP809", name: "Fail Test", country: @us, department: @engineering)
+    period = Period.create!(year: 2025, month: 9)
+    MonthlySalary.create!(employee: emp, period: period, monthly_salary: 5000, payable_amount: 5000, status: "Pending")
+
+    # Temporarily override call on SalaryProcessor to simulate database failure
+    original_call = SalaryProcessor.method(:call)
+    SalaryProcessor.define_singleton_method(:call) do |**_args|
+      SalaryProcessor::Result.new(
+        success?: false,
+        error_message: "Database error during salary processing: simulated failure"
+      )
+    end
+
+    begin
+      post process_salaries_monthly_salaries_url, params: { year: 2025, month: 9 }
+      assert_redirected_to monthly_salaries_path(year: "2025", month: "9")
+      follow_redirect!
+      assert_select ".alert-danger", text: /Database error during salary processing/
+    ensure
+      SalaryProcessor.define_singleton_method(:call, original_call)
+    end
+
+    assert_equal "Pending", MonthlySalary.find_by(employee: emp, period: period).status
+  end
+
+  test "invalid period input is handled appropriately" do
+    post process_salaries_monthly_salaries_url, params: { year: "invalid", month: "99" }
+    assert_redirected_to monthly_salaries_path(year: "invalid", month: "99")
+    follow_redirect!
+    assert_select ".alert-danger", text: /Year must be an integer/
+  end
 end
