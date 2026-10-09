@@ -1,0 +1,65 @@
+<% content_for :title, "#{@employee.name} — ACME HR" %>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><%= @employee.name %></h1>
+    <p class="page-subtitle">Employee Details</p>
+  </div>
+  <div>
+    <%= link_to "← Back to Employees", employees_path, class: "btn btn-ghost" %>
+  </div>
+</div>
+
+<div class="card mb-6">
+  <div class="card-body p-6">
+    <div class="grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;">
+      <div>
+        <div class="text-sm text-muted mb-1">Employee ID</div>
+        <div class="font-medium employee-number"><%= @employee.employee_number %></div>
+      </div>
+      <div>
+        <div class="text-sm text-muted mb-1">Current Salary</div>
+        <div class="font-medium employee-current-salary"><%= format_salary(@employee.current_salary, @employee.country) %></div>
+      </div>
+      <div>
+        <div class="text-sm text-muted mb-1">Country</div>
+        <div class="font-medium employee-country"><%= @employee.country.name %></div>
+      </div>
+      <div>
+        <div class="text-sm text-muted mb-1">Department</div>
+        <div class="font-medium employee-department"><%= @employee.department.name %></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card table-card">
+  <div class="card-header border-b border-color p-4 bg-gray-50">
+    <h2 class="font-semibold text-lg m-0">Salary History</h2>
+  </div>
+  
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Effective Date</th>
+          <th class="col-salary">Annual Salary</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if @salaries.empty? %>
+          <tr>
+            <td colspan="2" class="text-center empty-state salary-fallback">No salary records found for this employee.</td>
+          </tr>
+        <% else %>
+          <% @salaries.each do |salary| %>
+            <tr id="<%= dom_id(salary) %>">
+              <td class="salary-effective-date"><%= salary.effective_from.strftime("%B %d, %Y") %></td>
+              <td class="col-salary salary-amount"><%= format_salary(salary, @employee.country) %></td>
+            </tr>
+          <% end %>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>

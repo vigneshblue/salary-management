@@ -46,6 +46,16 @@ class EmployeesController < ApplicationController
     }.compact
   end
 
+  def show
+    @employee = Employee.includes(:country, :department).find(params[:id])
+    @salaries = @employee.salaries.order(effective_from: :desc).to_a
+
+    # We pass the pre-sorted and fetched salaries to a temporary in-memory
+    # collection for current_salary if it needs it, or just use current_salary.
+    # Since current_salary queries the DB if salaries aren't loaded, let's load them explicitly.
+    @employee.association(:salaries).target = @salaries
+  end
+
   private
 
   def filtered_scope

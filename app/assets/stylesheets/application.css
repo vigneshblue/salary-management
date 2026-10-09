@@ -368,3 +368,14 @@ a {
   padding: 0 4px;
   color: #94a3b8;
 }
+
+/* Helpers for Show Page */
+.mb-6 { margin-bottom: 24px; }
+.p-6 { padding: 24px; }
+.p-4 { padding: 16px; }
+.text-sm { font-size: 13px; }
+.text-lg { font-size: 18px; }
+.font-semibold { font-weight: 600; }
+.bg-gray-50 { background-color: #f8fafc; }
+.border-b { border-bottom: 1px solid var(--border-color); }
+.m-0 { margin: 0; }

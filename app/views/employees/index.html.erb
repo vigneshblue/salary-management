@@ -69,7 +69,9 @@
               <tr id="<%= dom_id(employee) %>">
                 <td class="col-index text-muted"><%= (@page - 1) * @per_page + idx + 1 %></td>
                 <td class="font-medium employee-number"><%= employee.employee_number %></td>
-                <td class="employee-name"><%= employee.name %></td>
+                <td class="employee-name">
+                  <%= link_to employee.name, employee_path(employee), class: "font-medium text-primary hover:underline", data: { turbo_frame: "_top" } %>
+                </td>
                 <td class="employee-country"><%= employee.country.name %></td>
                 <td class="employee-department"><%= employee.department.name %></td>
                 <td class="col-salary employee-salary"><%= format_salary(employee.current_salary, employee.country) %></td>

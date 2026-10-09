@@ -340,4 +340,98 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
     assert_select "select.filter-select", count: 2
     assert_select "input.btn-primary[type='submit']"
   end
+
+  # =====================
+  # Employee Details Tests
+  # =====================
+
+  test "should show employee details successfully" do
+    employee = Employee.create!(
+      employee_number: "EMP999",
+      name: "Detail Tester",
+      country: @us,
+      department: @engineering
+    )
+
+    get employee_url(employee)
+    assert_response :success
+    assert_select "h1.page-title", "Detail Tester"
+    assert_select ".employee-number", "EMP999"
+    assert_select ".employee-country", "United States"
+    assert_select ".employee-department", "Engineering"
+  end
+
+  test "show displays salary history ordered by effective_from DESC" do
+    employee = Employee.create!(
+      employee_number: "EMP888",
+      name: "Salary Tester",
+      country: @in,
+      department: @product
+    )
+
+    employee.salaries.create!(annual_salary: 800_000, effective_from: Date.new(2023, 1, 1))
+    employee.salaries.create!(annual_salary: 1_200_000, effective_from: Date.new(2025, 1, 1))
+    employee.salaries.create!(annual_salary: 1_000_000, effective_from: Date.new(2024, 1, 1))
+
+    get employee_url(employee)
+    assert_response :success
+
+    # Check that current salary correctly grabs the latest applicable
+    assert_select ".employee-current-salary", text: /1,200,000/
+
+    # Check history ordering
+    assert_select "td.salary-amount" do |elements|
+      amounts = elements.map(&:text)
+      # Should be ordered DESC by date, so 2025, then 2024, then 2023
+      assert_match(/1,200,000/, amounts[0])
+      assert_match(/1,000,000/, amounts[1])
+      assert_match(/800,000/, amounts[2])
+    end
+  end
+
+  test "show displays fallback when employee has no salary records" do
+    employee = Employee.create!(
+      employee_number: "EMP777",
+      name: "No Salary Tester",
+      country: @uk,
+      department: @engineering
+    )
+
+    get employee_url(employee)
+    assert_response :success
+    assert_select "td.empty-state", text: /No salary records found/
+    assert_select ".employee-current-salary span.salary-fallback", "No salary record"
+  end
+
+  test "show returns 404 for unknown employee ID" do
+    get employee_url(-1)
+    assert_response :not_found
+  end
+
+  test "avoids N+1 queries on the show page" do
+    employee = Employee.create!(
+      employee_number: "EMP666",
+      name: "Performance Tester",
+      country: @us,
+      department: @engineering
+    )
+    employee.salaries.create!(annual_salary: 60_000, effective_from: Date.current - 1.year)
+    employee.salaries.create!(annual_salary: 70_000, effective_from: Date.current - 1.month)
+
+    query_count = 0
+    callback = lambda do |_name, _start, _finish, _id, payload|
+      sql = payload[:sql]
+      unless sql =~ /SCHEMA|PRAGMA|SHOW|TRANSACTION|SAVEPOINT/i
+        query_count += 1
+      end
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      get employee_url(employee)
+    end
+
+    assert_response :success
+    # 1 Employee query, 1 Country query (eager), 1 Department query (eager), 1 Salaries query (for @salaries)
+    assert_operator query_count, :<=, 5, "Expected at most 5 database queries on show page"
+  end
 end
