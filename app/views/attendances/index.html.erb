@@ -1,0 +1,171 @@
+<% content_for :title, "Attendance Management — ACME HR" %>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Attendance Management</h1>
+    <p class="page-subtitle">Generate and manage monthly attendance simulations for employees</p>
+  </div>
+</div>
+
+<% if flash[:notice] %>
+  <div class="alert alert-success">
+    <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+    </svg>
+    <span><%= flash[:notice] %></span>
+  </div>
+<% end %>
+
+<% if flash[:alert] %>
+  <div class="alert alert-danger">
+    <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="12" y1="8" x2="12" y2="12"></line>
+      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+    </svg>
+    <span><%= flash[:alert] %></span>
+  </div>
+<% end %>
+
+<div class="card mb-6">
+  <div class="card-header border-b p-4 bg-gray-50">
+    <h2 class="font-semibold text-lg m-0">Generate Monthly Attendance</h2>
+  </div>
+  <div class="card-body p-6">
+    <p class="text-muted mb-6">
+      Select a year and month to generate attendance. Working days exclude Saturdays and Sundays.
+      This operation is idempotent: if records already exist for the selected month, they will be preserved without duplicate creation.
+    </p>
+
+    <%= form_with url: attendances_path, method: :post, class: "attendance-form", local: true do |f| %>
+      <div class="attendance-form-grid">
+        <div class="form-group">
+          <%= f.label :year, "Year", class: "form-label" %>
+          <%= f.select :year,
+                options_for_select((2020..2030).to_a.reverse, @year),
+                {},
+                class: "filter-select w-full" %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :month, "Month", class: "form-label" %>
+          <%= f.select :month,
+                options_for_select((1..12).map { |m| [Date::MONTHNAMES[m], m] }, @month),
+                {},
+                class: "filter-select w-full" %>
+        </div>
+
+        <div class="form-group action-group">
+          <%= f.submit "Generate Attendance", class: "btn btn-primary" %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<div class="card mb-6">
+  <div class="card-header border-b p-4 bg-gray-50">
+    <h2 class="font-semibold text-lg m-0">Selected Period Status: <%= Date::MONTHNAMES[@month] %> <%= @year %></h2>
+  </div>
+  <div class="card-body p-6">
+    <div class="grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+      <div class="stat-card">
+        <div class="text-sm text-muted mb-1">Standard Working Days</div>
+        <div class="stat-value"><%= @working_days %> <span class="text-sm font-normal text-muted">(Mon–Fri)</span></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="text-sm text-muted mb-1">Total Employees in System</div>
+        <div class="stat-value"><%= number_with_delimiter(@total_employees) %></div>
+      </div>
+
+      <div class="stat-card">
+        <div class="text-sm text-muted mb-1">Attendance Records Generated</div>
+        <div class="stat-value">
+          <%= number_with_delimiter(@attendances_count) %>
+          <% if @total_employees.positive? && @attendances_count == @total_employees %>
+            <span class="badge badge-success">Complete</span>
+          <% elsif @attendances_count.positive? %>
+            <span class="badge badge-warning">Partial</span>
+          <% else %>
+            <span class="badge badge-muted">Not Generated</span>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<% if @sample_attendances.any? %>
+  <div class="card table-card mb-6">
+    <div class="card-header border-b p-4 bg-gray-50">
+      <h3 class="font-semibold text-lg m-0">Sample Attendance Preview (<%= Date::MONTHNAMES[@month] %> <%= @year %>)</h3>
+    </div>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Employee ID</th>
+            <th>Name</th>
+            <th>Country</th>
+            <th>Department</th>
+            <th>Working Days</th>
+            <th>Present Days</th>
+            <th>Attendance Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @sample_attendances.each do |att| %>
+            <tr id="<%= dom_id(att) %>">
+              <td class="font-medium employee-number"><%= att.employee.employee_number %></td>
+              <td><%= link_to att.employee.name, employee_path(att.employee), class: "font-medium text-primary hover:underline" %></td>
+              <td><%= att.employee.country.name %></td>
+              <td><%= att.employee.department.name %></td>
+              <td><%= att.working_days %></td>
+              <td class="font-medium"><%= att.present_days %></td>
+              <td>
+                <% rate = att.working_days.positive? ? ((att.present_days.to_f / att.working_days) * 100).round(1) : 0 %>
+                <span class="text-muted"><%= rate %>%</span>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% end %>
+
+<% if @periods.any? %>
+  <div class="card table-card">
+    <div class="card-header border-b p-4 bg-gray-50">
+      <h3 class="font-semibold text-lg m-0">All Recorded Periods</h3>
+    </div>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Year</th>
+            <th>Month</th>
+            <th>Recorded Attendances</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @periods.each do |p| %>
+            <tr>
+              <td class="font-medium"><%= Date::MONTHNAMES[p.month] %> <%= p.year %></td>
+              <td><%= p.year %></td>
+              <td><%= p.month %></td>
+              <td><%= number_with_delimiter(p.attendances.count) %></td>
+              <td>
+                <%= link_to "View Period", attendances_path(year: p.year, month: p.month), class: "btn btn-ghost btn-sm" %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% end %>
