@@ -10,7 +10,7 @@
   <% if @total_pages > 1 %>
     <nav class="pagination-controls" aria-label="Employees pagination">
       <% if @page > 1 %>
-        <%= link_to "‹", employees_path(page: @page - 1, per_page: @per_page), class: "pagination-btn pagination-prev", aria: { label: "Previous page" } %>
+        <%= link_to "‹", employees_path(@filter_params.merge(page: @page - 1, per_page: @per_page)), class: "pagination-btn pagination-prev", aria: { label: "Previous page" } %>
       <% else %>
         <span class="pagination-btn pagination-disabled" aria-hidden="true">‹</span>
       <% end %>
@@ -21,12 +21,12 @@
         <% elsif p == @page %>
           <span class="pagination-btn pagination-active" aria-current="page"><%= number_with_delimiter(p) %></span>
         <% else %>
-          <%= link_to number_with_delimiter(p), employees_path(page: p, per_page: @per_page), class: "pagination-btn" %>
+          <%= link_to number_with_delimiter(p), employees_path(@filter_params.merge(page: p, per_page: @per_page)), class: "pagination-btn" %>
         <% end %>
       <% end %>
 
       <% if @page < @total_pages %>
-        <%= link_to "›", employees_path(page: @page + 1, per_page: @per_page), class: "pagination-btn pagination-next", aria: { label: "Next page" } %>
+        <%= link_to "›", employees_path(@filter_params.merge(page: @page + 1, per_page: @per_page)), class: "pagination-btn pagination-next", aria: { label: "Next page" } %>
       <% else %>
         <span class="pagination-btn pagination-disabled" aria-hidden="true">›</span>
       <% end %>

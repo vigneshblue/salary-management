@@ -156,8 +156,16 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    # Exactly: 1 COUNT(*) + 1 SELECT employees + 1 SELECT countries + 1 SELECT departments + 1 SELECT salaries = 5 queries
-    assert_operator query_count, :<=, 6, "Expected at most 6 database queries, but performed #{query_count} (potential N+1 query detected)"
+    # Queries breakdown:
+    #   1 COUNT(*) for pagination
+    #   1 SELECT employees (paginated)
+    #   1 SELECT countries (eager load for employee rows)
+    #   1 SELECT departments (eager load for employee rows)
+    #   1 SELECT salaries (eager load for employee rows)
+    #   1 SELECT countries (for dropdown population)
+    #   1 SELECT departments (for dropdown population)
+    # = 7 queries (plus up to 2 transaction-related): cap at 9
+    assert_operator query_count, :<=, 9, "Expected at most 9 database queries, but performed #{query_count} (potential N+1 query detected)"
   end
 
   test "navigation sidebar includes link to Employees" do
@@ -172,5 +180,164 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
     get root_url
     assert_response :success
     assert_select "h1.page-title", "Employees"
+  end
+
+  # =====================
+  # Search and Filter Tests
+  # =====================
+
+  test "search by employee number returns matching employees only" do
+    emp_a = Employee.create!(employee_number: "EMP100", name: "Alice Adams", country: @us, department: @engineering)
+    Employee.create!(employee_number: "EMP200", name: "Bob Barnes", country: @in, department: @product)
+
+    get employees_url, params: { q: "EMP100" }
+    assert_response :success
+    assert_select "td.employee-number", "EMP100"
+    assert_select "td.employee-number", text: "EMP200", count: 0
+    assert_select "tbody tr", count: 1
+  end
+
+  test "search by employee name returns matching employees only" do
+    Employee.create!(employee_number: "EMP101", name: "Alice Adams", country: @us, department: @engineering)
+    Employee.create!(employee_number: "EMP102", name: "Bob Barnes", country: @in, department: @product)
+
+    get employees_url, params: { q: "Alice" }
+    assert_response :success
+    assert_select "td.employee-name", "Alice Adams"
+    assert_select "td.employee-name", text: "Bob Barnes", count: 0
+  end
+
+  test "search is case insensitive" do
+    Employee.create!(employee_number: "EMP103", name: "Charlie Chen", country: @us, department: @engineering)
+
+    get employees_url, params: { q: "charlie chen" }
+    assert_response :success
+    assert_select "td.employee-name", "Charlie Chen"
+  end
+
+  test "partial search matches both name and employee number" do
+    Employee.create!(employee_number: "EMP104", name: "David Dean", country: @us, department: @engineering)
+    Employee.create!(employee_number: "EMP105", name: "Eva Evans", country: @in, department: @product)
+
+    get employees_url, params: { q: "EMP10" }
+    assert_response :success
+    assert_select "tbody tr", count: 2
+    assert_select "td.employee-number", "EMP104"
+    assert_select "td.employee-number", "EMP105"
+  end
+
+  test "filter by country returns only employees from that country" do
+    Employee.create!(employee_number: "EMP110", name: "Frank Ford", country: @us, department: @engineering)
+    Employee.create!(employee_number: "EMP111", name: "Grace Gupta", country: @in, department: @product)
+
+    get employees_url, params: { country_id: @us.id }
+    assert_response :success
+    assert_select "td.employee-country", "United States"
+    assert_select "td.employee-country", text: "India", count: 0
+  end
+
+  test "filter by department returns only employees in that department" do
+    Employee.create!(employee_number: "EMP120", name: "Hank Hill", country: @us, department: @engineering)
+    Employee.create!(employee_number: "EMP121", name: "Iris Ingram", country: @us, department: @product)
+
+    get employees_url, params: { department_id: @engineering.id }
+    assert_response :success
+    assert_select "td.employee-department", "Engineering"
+    assert_select "td.employee-department", text: "Product", count: 0
+  end
+
+  test "search and country filter work together" do
+    Employee.create!(employee_number: "EMP130", name: "Jack Jones", country: @us, department: @engineering)
+    Employee.create!(employee_number: "EMP131", name: "Jack Kumar", country: @in, department: @engineering)
+
+    get employees_url, params: { q: "Jack", country_id: @us.id }
+    assert_response :success
+    assert_select "tbody tr", count: 1
+    assert_select "td.employee-name", "Jack Jones"
+    assert_select "td.employee-name", text: "Jack Kumar", count: 0
+  end
+
+  test "search and department filter work together" do
+    Employee.create!(employee_number: "EMP140", name: "Kate King", country: @us, department: @engineering)
+    Employee.create!(employee_number: "EMP141", name: "Kate Lee", country: @us, department: @product)
+
+    get employees_url, params: { q: "Kate", department_id: @engineering.id }
+    assert_response :success
+    assert_select "tbody tr", count: 1
+    assert_select "td.employee-name", "Kate King"
+    assert_select "td.employee-name", text: "Kate Lee", count: 0
+  end
+
+  test "all three filters work combined" do
+    Employee.create!(employee_number: "EMP150", name: "Liam Lee", country: @us, department: @engineering)
+    Employee.create!(employee_number: "EMP151", name: "Liam Lin", country: @in, department: @engineering)
+    Employee.create!(employee_number: "EMP152", name: "Liam Long", country: @us, department: @product)
+
+    get employees_url, params: { q: "Liam", country_id: @us.id, department_id: @engineering.id }
+    assert_response :success
+    assert_select "tbody tr", count: 1
+    assert_select "td.employee-name", "Liam Lee"
+  end
+
+  test "search with no matching employees shows contextual empty state" do
+    get employees_url, params: { q: "ZZZNONEXISTENT" }
+    assert_response :success
+    assert_select "tbody tr", count: 1
+    assert_select "td.empty-state", text: /No employees match your search or filters/
+  end
+
+  test "filter with no matching employees shows contextual empty state" do
+    get employees_url, params: { country_id: @uk.id }
+    assert_response :success
+    assert_select "td.empty-state", text: /No employees match your search or filters/
+  end
+
+  test "pagination preserves search params in next/prev links" do
+    15.times do |i|
+      Employee.create!(
+        employee_number: format("SRCH%04d", i + 1),
+        name: "Searchable Person #{i + 1}",
+        country: @us,
+        department: @engineering
+      )
+    end
+
+    get employees_url, params: { q: "Searchable", page: 1 }
+    assert_response :success
+    assert_select "tbody tr", count: 10
+    assert_select ".pagination-info", text: /Showing 1 to 10 of 15 employees/
+    # Next page link must include the search param
+    assert_select "a.pagination-next[href*='q=Searchable']"
+
+    get employees_url, params: { q: "Searchable", page: 2 }
+    assert_response :success
+    assert_select "tbody tr", count: 5
+    assert_select ".pagination-info", text: /Showing 11 to 15 of 15 employees/
+    # Previous page link must include the search param
+    assert_select "a.pagination-prev[href*='q=Searchable']"
+  end
+
+  test "pagination preserves country filter in links" do
+    12.times do |i|
+      Employee.create!(
+        employee_number: format("FILT%04d", i + 1),
+        name: "Filter Person #{i + 1}",
+        country: @us,
+        department: @engineering
+      )
+    end
+
+    get employees_url, params: { country_id: @us.id, page: 1 }
+    assert_response :success
+    assert_select "a.pagination-next[href*='country_id=#{@us.id}']"
+  end
+
+  test "search renders the search and filter UI controls" do
+    get employees_url
+    assert_response :success
+    assert_select "form.search-bar"
+    assert_select "input.search-input"
+    assert_select "select.filter-select", count: 2
+    assert_select "input.btn-primary[type='submit']"
   end
 end

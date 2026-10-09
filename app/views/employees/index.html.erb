@@ -7,6 +7,38 @@
   </div>
 </div>
 
+<%= form_with url: employees_path, method: :get, data: { turbo_frame: "employees_frame" }, class: "search-bar" do |f| %>
+  <div class="search-bar-inner">
+    <div class="search-input-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <%= f.text_field :q,
+            value: @query,
+            placeholder: "Search by name or employee ID…",
+            class: "search-input",
+            autocomplete: "off" %>
+    </div>
+
+    <%= f.select :country_id,
+          options_from_collection_for_select(@countries, :id, :name, @country_id&.to_i),
+          { include_blank: "All Countries" },
+          class: "filter-select" %>
+
+    <%= f.select :department_id,
+          options_from_collection_for_select(@departments, :id, :name, @department_id&.to_i),
+          { include_blank: "All Departments" },
+          class: "filter-select" %>
+
+    <%= f.submit "Search", class: "btn btn-primary" %>
+
+    <% if @filter_params.any? %>
+      <%= link_to "Clear", employees_path, class: "btn btn-ghost" %>
+    <% end %>
+  </div>
+<% end %>
+
 <%= turbo_frame_tag "employees_frame", data: { turbo_action: "advance" } do %>
   <div class="card table-card">
     <div class="table-responsive">
@@ -24,7 +56,13 @@
         <tbody>
           <% if @employees.empty? %>
             <tr>
-              <td colspan="6" class="text-center empty-state">No employees found.</td>
+              <td colspan="6" class="text-center empty-state">
+                <% if @filter_params.any? %>
+                  No employees match your search or filters.
+                <% else %>
+                  No employees found.
+                <% end %>
+              </td>
             </tr>
           <% else %>
             <% @employees.each_with_index do |employee, idx| %>
