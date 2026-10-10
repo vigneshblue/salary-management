@@ -491,3 +491,67 @@ a {
   background-color: #e2e8f0;
   color: #475569;
 }
+
+/* Chart Cards */
+.chart-card {
+  overflow: hidden;
+}
+
+.chart-body {
+  padding: 16px 16px 8px;
+  overflow-x: auto;
+}
+
+.chart-body svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.chart-details {
+  border-top: 1px solid var(--border-color);
+}
+
+.chart-details-toggle {
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--primary);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.chart-details-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.chart-details-toggle::before {
+  content: "▸ ";
+}
+
+details[open] > .chart-details-toggle::before {
+  content: "▾ ";
+}
+
+.chart-legend {
+  display: flex;
+  gap: 16px;
+  padding: 0 4px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}

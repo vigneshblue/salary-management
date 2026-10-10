@@ -176,10 +176,10 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "root path routes to employees#index" do
+  test "root path routes to dashboards#show" do
     get root_url
     assert_response :success
-    assert_select "h1.page-title", "Employees"
+    assert_select "h1.page-title", "Salary Insights Dashboard"
   end
 
   # =====================

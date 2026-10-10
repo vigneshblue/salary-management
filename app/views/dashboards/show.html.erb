@@ -1,0 +1,453 @@
+<% content_for :title, "Salary Insights Dashboard — ACME HR" %>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Salary Insights Dashboard</h1>
+    <p class="page-subtitle">Organization metrics, compensation distribution, and monthly payroll performance</p>
+  </div>
+</div>
+
+<!-- 1. Organization Overview Cards -->
+<div class="grid mb-6" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;">
+  <div class="card stat-card">
+    <div class="text-sm text-muted mb-1">Total Employees</div>
+    <div class="stat-value"><%= number_with_delimiter(@insights.total_employees) %></div>
+    <div class="text-sm text-muted" style="margin-top: 4px;">Active headcount</div>
+  </div>
+
+  <div class="card stat-card">
+    <div class="text-sm text-muted mb-1">Employees with Applicable Salary</div>
+    <div class="stat-value"><%= number_with_delimiter(@insights.employees_with_salary_count) %></div>
+    <div class="text-sm text-muted" style="margin-top: 4px;">Effective as of <%= @as_of_date.strftime("%b %d, %Y") %></div>
+  </div>
+
+  <div class="card stat-card">
+    <div class="text-sm text-muted mb-1">Countries Represented</div>
+    <div class="stat-value"><%= @insights.country_counts.size %></div>
+    <div class="text-sm text-muted" style="margin-top: 4px;">Across global regions</div>
+  </div>
+
+  <div class="card stat-card">
+    <div class="text-sm text-muted mb-1">Departments</div>
+    <div class="stat-value"><%= @insights.department_counts.size %></div>
+    <div class="text-sm text-muted" style="margin-top: 4px;">Functional divisions</div>
+  </div>
+</div>
+
+<!-- 2. Workforce Distribution Charts -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px;" class="mb-6">
+  <!-- Headcount by Country Chart -->
+  <div class="card chart-card">
+    <div class="card-header border-b p-4 bg-gray-50">
+      <h2 class="font-semibold text-lg m-0">Headcount by Country</h2>
+    </div>
+    <div class="chart-body">
+      <% if @insights.country_counts.present? %>
+        <%
+          country_items = @insights.country_counts.to_a
+          c_max = country_items.map(&:last).max
+          c_bar_w = [((500 - 60) / [country_items.size, 1].max) - 12, 60].min
+          c_spacing = c_bar_w + 12
+          c_chart_w = country_items.size * c_spacing + 60
+        %>
+        <svg class="chart-headcount-country" width="<%= [c_chart_w, 500].max %>" height="260" role="img" aria-label="Bar chart showing employee headcount by country">
+          <% country_items.each_with_index do |(country_name, count), i| %>
+            <% bar_h = c_max.positive? ? (count.to_f / c_max) * 200 : 0 %>
+            <rect x="<%= i * c_spacing + 50 %>" y="<%= 220 - bar_h %>" width="<%= c_bar_w %>" height="<%= bar_h %>" fill="#4A90E2" rx="3">
+              <title><%= country_name %>: <%= count %> employees</title>
+            </rect>
+            <text x="<%= i * c_spacing + 50 + c_bar_w / 2 %>" y="240" text-anchor="middle" font-size="11" fill="#475569"><%= country_name %></text>
+            <text x="<%= i * c_spacing + 50 + c_bar_w / 2 %>" y="<%= 220 - bar_h - 6 %>" text-anchor="middle" font-size="11" font-weight="600" fill="#0f172a"><%= count %></text>
+          <% end %>
+          <line x1="45" y1="220" x2="<%= [c_chart_w, 500].max - 10 %>" y2="220" stroke="#cbd5e1" stroke-width="1"/>
+        </svg>
+      <% else %>
+        <div class="empty-state text-center">No country data available.</div>
+      <% end %>
+    </div>
+    <details class="chart-details">
+      <summary class="chart-details-toggle">Show table</summary>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Country</th>
+              <th style="text-align: right;">Employees</th>
+              <th style="text-align: right;">Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if @insights.country_counts.empty? %>
+              <tr><td colspan="3" class="text-center empty-state">No country data available.</td></tr>
+            <% else %>
+              <% @insights.country_counts.each do |country_name, count| %>
+                <% share = @insights.total_employees.positive? ? ((count.to_f / @insights.total_employees) * 100).round(1) : 0 %>
+                <tr>
+                  <td class="font-medium"><%= country_name %></td>
+                  <td style="text-align: right;"><%= number_with_delimiter(count) %></td>
+                  <td style="text-align: right;" class="text-muted"><%= share %>%</td>
+                </tr>
+              <% end %>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </div>
+
+  <!-- Headcount by Department Chart -->
+  <div class="card chart-card">
+    <div class="card-header border-b p-4 bg-gray-50">
+      <h2 class="font-semibold text-lg m-0">Headcount by Department</h2>
+    </div>
+    <div class="chart-body">
+      <% if @insights.department_counts.present? %>
+        <%
+          dept_items = @insights.department_counts.to_a
+          d_max = dept_items.map(&:last).max
+          d_label_w = 120
+          d_bar_max_w = 300
+        %>
+        <svg class="chart-headcount-dept" width="500" height="<%= dept_items.size * 36 + 20 %>" role="img" aria-label="Horizontal bar chart showing employee headcount by department">
+          <% dept_items.each_with_index do |(dept_name, count), i| %>
+            <% bar_w = d_max.positive? ? (count.to_f / d_max) * d_bar_max_w : 0 %>
+            <text x="<%= d_label_w - 8 %>" y="<%= i * 36 + 22 %>" text-anchor="end" font-size="12" fill="#475569"><%= dept_name %></text>
+            <rect x="<%= d_label_w %>" y="<%= i * 36 + 8 %>" width="<%= bar_w %>" height="22" fill="#34D399" rx="3">
+              <title><%= dept_name %>: <%= count %> employees</title>
+            </rect>
+            <text x="<%= d_label_w + bar_w + 8 %>" y="<%= i * 36 + 23 %>" font-size="11" font-weight="600" fill="#0f172a"><%= count %></text>
+          <% end %>
+        </svg>
+      <% else %>
+        <div class="empty-state text-center">No department data available.</div>
+      <% end %>
+    </div>
+    <details class="chart-details">
+      <summary class="chart-details-toggle">Show table</summary>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Department</th>
+              <th style="text-align: right;">Employees</th>
+              <th style="text-align: right;">Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if @insights.department_counts.empty? %>
+              <tr><td colspan="3" class="text-center empty-state">No department data available.</td></tr>
+            <% else %>
+              <% @insights.department_counts.each do |dept_name, count| %>
+                <% share = @insights.total_employees.positive? ? ((count.to_f / @insights.total_employees) * 100).round(1) : 0 %>
+                <tr>
+                  <td class="font-medium"><%= dept_name %></td>
+                  <td style="text-align: right;"><%= number_with_delimiter(count) %></td>
+                  <td style="text-align: right;" class="text-muted"><%= share %>%</td>
+                </tr>
+              <% end %>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </div>
+</div>
+
+<!-- 3. Annual Salary Distribution by Country (Chart + Table) -->
+<div class="card chart-card mb-6">
+  <div class="card-header border-b p-4 bg-gray-50">
+    <h2 class="font-semibold text-lg m-0">Annual Salary Distribution by Country</h2>
+    <p class="text-muted text-sm m-0">Latest applicable annual salaries as of <%= @as_of_date.strftime("%B %d, %Y") %> — grouped by currency</p>
+  </div>
+  <div class="chart-body">
+    <% if @insights.salaries_by_country.present? %>
+      <%
+        sal_items = @insights.salaries_by_country
+        sal_max = sal_items.map { |r| r[:max].to_f }.max
+        sal_bar_w = 28
+        sal_group_w = sal_bar_w * 3 + 30
+        sal_chart_w = sal_items.size * sal_group_w + 80
+        sal_colors = { min: "#93c5fd", avg: "#2563eb", max: "#1e3a5f" }
+      %>
+      <div class="chart-legend" style="margin-bottom: 8px;">
+        <span class="legend-item"><span class="legend-swatch" style="background: <%= sal_colors[:min] %>;"></span>Min</span>
+        <span class="legend-item"><span class="legend-swatch" style="background: <%= sal_colors[:avg] %>;"></span>Avg</span>
+        <span class="legend-item"><span class="legend-swatch" style="background: <%= sal_colors[:max] %>;"></span>Max</span>
+      </div>
+      <svg class="chart-salary-country" width="<%= [sal_chart_w, 500].max %>" height="300" role="img" aria-label="Grouped bar chart showing annual salary min, avg, max by country and currency">
+        <% sal_items.each_with_index do |row, i| %>
+          <% symbol = EmployeesHelper::CURRENCY_SYMBOLS[row[:currency]] || "#{row[:currency]} " %>
+          <% group_x = i * sal_group_w + 60 %>
+          <%# Min bar %>
+          <% min_h = sal_max.positive? ? (row[:min].to_f / sal_max) * 220 : 0 %>
+          <rect x="<%= group_x %>" y="<%= 250 - min_h %>" width="<%= sal_bar_w %>" height="<%= min_h %>" fill="<%= sal_colors[:min] %>" rx="2">
+            <title><%= row[:country_name] %> (<%= row[:currency] %>) Min: <%= symbol %><%= number_with_precision(row[:min], precision: 0, delimiter: ",") %></title>
+          </rect>
+          <%# Avg bar %>
+          <% avg_h = sal_max.positive? ? (row[:avg].to_f / sal_max) * 220 : 0 %>
+          <rect x="<%= group_x + sal_bar_w + 2 %>" y="<%= 250 - avg_h %>" width="<%= sal_bar_w %>" height="<%= avg_h %>" fill="<%= sal_colors[:avg] %>" rx="2">
+            <title><%= row[:country_name] %> (<%= row[:currency] %>) Avg: <%= symbol %><%= number_with_precision(row[:avg], precision: 0, delimiter: ",") %></title>
+          </rect>
+          <%# Max bar %>
+          <% max_h = sal_max.positive? ? (row[:max].to_f / sal_max) * 220 : 0 %>
+          <rect x="<%= group_x + (sal_bar_w + 2) * 2 %>" y="<%= 250 - max_h %>" width="<%= sal_bar_w %>" height="<%= max_h %>" fill="<%= sal_colors[:max] %>" rx="2">
+            <title><%= row[:country_name] %> (<%= row[:currency] %>) Max: <%= symbol %><%= number_with_precision(row[:max], precision: 0, delimiter: ",") %></title>
+          </rect>
+          <%# Label %>
+          <text x="<%= group_x + sal_bar_w + 2 %>" y="270" text-anchor="middle" font-size="11" fill="#475569"><%= row[:country_name] %></text>
+          <text x="<%= group_x + sal_bar_w + 2 %>" y="284" text-anchor="middle" font-size="10" fill="#94a3b8"><%= row[:currency] %></text>
+        <% end %>
+        <line x1="55" y1="250" x2="<%= [sal_chart_w, 500].max - 10 %>" y2="250" stroke="#cbd5e1" stroke-width="1"/>
+      </svg>
+    <% else %>
+      <div class="empty-state text-center">No salary records available for this date.</div>
+    <% end %>
+  </div>
+  <details class="chart-details">
+    <summary class="chart-details-toggle">Show detailed table</summary>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Country</th>
+            <th>Currency</th>
+            <th style="text-align: right;">Salaried Count</th>
+            <th class="col-salary" style="text-align: right;">Minimum Salary</th>
+            <th class="col-salary" style="text-align: right;">Average Salary</th>
+            <th class="col-salary" style="text-align: right;">Maximum Salary</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if @insights.salaries_by_country.empty? %>
+            <tr><td colspan="6" class="text-center empty-state">No salary records available for this date.</td></tr>
+          <% else %>
+            <% @insights.salaries_by_country.each do |row| %>
+              <% symbol = EmployeesHelper::CURRENCY_SYMBOLS[row[:currency]] || "#{row[:currency]} " %>
+              <tr>
+                <td class="font-medium"><%= row[:country_name] %></td>
+                <td><span class="badge badge-muted"><%= row[:currency] %></span></td>
+                <td style="text-align: right;"><%= number_with_delimiter(row[:count]) %></td>
+                <td class="col-salary" style="text-align: right;"><%= symbol %><%= number_with_precision(row[:min], precision: 2, delimiter: ",") %></td>
+                <td class="col-salary font-medium" style="text-align: right;"><%= symbol %><%= number_with_precision(row[:avg], precision: 2, delimiter: ",") %></td>
+                <td class="col-salary" style="text-align: right;"><%= symbol %><%= number_with_precision(row[:max], precision: 2, delimiter: ",") %></td>
+              </tr>
+            <% end %>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </details>
+</div>
+
+<!-- 4. Annual Salary Insights by Department & Currency -->
+<div class="card table-card mb-6">
+  <div class="card-header border-b p-4 bg-gray-50">
+    <h2 class="font-semibold text-lg m-0">Annual Salary Insights by Department &amp; Currency</h2>
+    <p class="text-muted text-sm m-0">Cross-country department values reported per local currency to prevent misleading aggregation across currencies</p>
+  </div>
+  <details class="chart-details" open>
+    <summary class="chart-details-toggle">Department salary breakdown</summary>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Department</th>
+            <th>Currency</th>
+            <th style="text-align: right;">Salaried Count</th>
+            <th class="col-salary" style="text-align: right;">Minimum Salary</th>
+            <th class="col-salary" style="text-align: right;">Average Salary</th>
+            <th class="col-salary" style="text-align: right;">Maximum Salary</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if @insights.salaries_by_department.empty? %>
+            <tr><td colspan="6" class="text-center empty-state">No departmental salary records available.</td></tr>
+          <% else %>
+            <% @insights.salaries_by_department.each do |row| %>
+              <% symbol = EmployeesHelper::CURRENCY_SYMBOLS[row[:currency]] || "#{row[:currency]} " %>
+              <tr>
+                <td class="font-medium dept-salary-name"><%= row[:department_name] %></td>
+                <td><span class="badge badge-muted"><%= row[:currency] %></span></td>
+                <td style="text-align: right;"><%= number_with_delimiter(row[:count]) %></td>
+                <td class="col-salary" style="text-align: right;"><%= symbol %><%= number_with_precision(row[:min], precision: 2, delimiter: ",") %></td>
+                <td class="col-salary font-medium" style="text-align: right;"><%= symbol %><%= number_with_precision(row[:avg], precision: 2, delimiter: ",") %></td>
+                <td class="col-salary" style="text-align: right;"><%= symbol %><%= number_with_precision(row[:max], precision: 2, delimiter: ",") %></td>
+              </tr>
+            <% end %>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </details>
+</div>
+
+<!-- 5. Monthly Payroll Insights for Selected Period -->
+<div class="card mb-6">
+  <div class="card-header border-b p-4 bg-gray-50" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+    <div>
+      <h2 class="font-semibold text-lg m-0">Monthly Payroll Insights</h2>
+      <% if @selected_period %>
+        <p class="text-muted text-sm m-0">Reporting for <strong><%= Date::MONTHNAMES[@selected_period.month] %> <%= @selected_period.year %></strong></p>
+      <% else %>
+        <p class="text-muted text-sm m-0">No recorded periods found</p>
+      <% end %>
+    </div>
+
+    <%= form_with url: root_path, method: :get, class: "attendance-form", local: true do |f| %>
+      <div class="attendance-form-grid" style="align-items: center;">
+        <div class="form-group" style="min-width: 130px;">
+          <%= f.select :year,
+                options_for_select((2020..2030).to_a.reverse, @selected_period&.year || Date.current.year),
+                {},
+                class: "filter-select w-full",
+                style: "padding-top: 6px; padding-bottom: 6px;" %>
+        </div>
+        <div class="form-group" style="min-width: 140px;">
+          <%= f.select :month,
+                options_for_select((1..12).map { |m| [Date::MONTHNAMES[m], m] }, @selected_period&.month || Date.current.month),
+                {},
+                class: "filter-select w-full",
+                style: "padding-top: 6px; padding-bottom: 6px;" %>
+        </div>
+        <div class="form-group action-group">
+          <%= f.submit "Inspect Period", class: "btn btn-primary btn-sm" %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="card-body p-6">
+    <% if @selected_period.nil? %>
+      <div class="empty-state text-center">No payroll records have been created yet. Generate attendance and calculate salaries to view monthly payroll insights.</div>
+    <% else %>
+      <div class="grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px;">
+        <!-- Paid Stats -->
+        <div class="stat-card" style="border-left: 4px solid #10b981;">
+          <div class="text-sm text-muted mb-1">Paid Employee Count</div>
+          <div class="stat-value" style="color: #065f46;">
+            <%= number_with_delimiter(@insights.period_paid_count) %>
+            <span class="badge badge-success">Paid</span>
+          </div>
+          <% if @insights.period_paid_totals.any? %>
+            <div style="margin-top: 12px; font-size: 13px;">
+              <div class="text-muted mb-1">Paid Totals by Currency:</div>
+              <% @insights.period_paid_totals.each do |curr, total| %>
+                <% symbol = EmployeesHelper::CURRENCY_SYMBOLS[curr] || "#{curr} " %>
+                <div class="font-medium"><%= symbol %><%= number_with_precision(total, precision: 2, delimiter: ",") %> (<%= curr %>)</div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-muted text-sm" style="margin-top: 8px;">No paid salaries for this period</div>
+          <% end %>
+        </div>
+
+        <!-- Pending Stats -->
+        <div class="stat-card" style="border-left: 4px solid #f59e0b;">
+          <div class="text-sm text-muted mb-1">Pending Employee Count</div>
+          <div class="stat-value" style="color: #92400e;">
+            <%= number_with_delimiter(@insights.period_pending_count) %>
+            <span class="badge badge-warning">Pending</span>
+          </div>
+          <% if @insights.period_pending_totals.any? %>
+            <div style="margin-top: 12px; font-size: 13px;">
+              <div class="text-muted mb-1">Pending Totals by Currency:</div>
+              <% @insights.period_pending_totals.each do |curr, total| %>
+                <% symbol = EmployeesHelper::CURRENCY_SYMBOLS[curr] || "#{curr} " %>
+                <div class="font-medium"><%= symbol %><%= number_with_precision(total, precision: 2, delimiter: ",") %> (<%= curr %>)</div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-muted text-sm" style="margin-top: 8px;">No pending salaries for this period</div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<!-- 6. Monthly Payroll Trends Chart + Table -->
+<div class="card chart-card mb-6">
+  <div class="card-header border-b p-4 bg-gray-50">
+    <h2 class="font-semibold text-lg m-0">Recent Monthly Payroll Trends</h2>
+    <p class="text-muted text-sm m-0">Overview of recent monthly salary processing cycles</p>
+  </div>
+  <div class="chart-body">
+    <% if @insights.recent_periods_trends.present? %>
+      <%
+        trends = @insights.recent_periods_trends.reverse  # chronological order for chart
+        trend_max = trends.map { |t| t[:total_count] }.max
+        trend_bar_w = 50
+        trend_spacing = trend_bar_w + 16
+        trend_chart_w = trends.size * trend_spacing + 80
+      %>
+      <div class="chart-legend" style="margin-bottom: 8px;">
+        <span class="legend-item"><span class="legend-swatch" style="background: #10b981;"></span>Paid</span>
+        <span class="legend-item"><span class="legend-swatch" style="background: #f59e0b;"></span>Pending</span>
+      </div>
+      <svg class="chart-payroll-trend" width="<%= [trend_chart_w, 500].max %>" height="280" role="img" aria-label="Stacked bar chart showing monthly payroll paid and pending counts">
+        <% trends.each_with_index do |trend, i| %>
+          <% group_x = i * trend_spacing + 60 %>
+          <%# Paid portion (bottom) %>
+          <% paid_h = trend_max.positive? ? (trend[:paid_count].to_f / trend_max) * 200 : 0 %>
+          <% pending_h = trend_max.positive? ? (trend[:pending_count].to_f / trend_max) * 200 : 0 %>
+          <rect x="<%= group_x %>" y="<%= 230 - paid_h - pending_h %>" width="<%= trend_bar_w %>" height="<%= pending_h %>" fill="#f59e0b" rx="3">
+            <title><%= trend[:period_name] %> — Pending: <%= trend[:pending_count] %></title>
+          </rect>
+          <rect x="<%= group_x %>" y="<%= 230 - paid_h %>" width="<%= trend_bar_w %>" height="<%= paid_h %>" fill="#10b981" rx="3">
+            <title><%= trend[:period_name] %> — Paid: <%= trend[:paid_count] %></title>
+          </rect>
+          <%# Total label %>
+          <text x="<%= group_x + trend_bar_w / 2 %>" y="<%= 230 - paid_h - pending_h - 6 %>" text-anchor="middle" font-size="11" font-weight="600" fill="#0f172a"><%= trend[:total_count] %></text>
+          <%# Period label %>
+          <text x="<%= group_x + trend_bar_w / 2 %>" y="250" text-anchor="middle" font-size="10" fill="#475569"><%= Date::ABBR_MONTHNAMES[trend[:month]] %></text>
+          <text x="<%= group_x + trend_bar_w / 2 %>" y="264" text-anchor="middle" font-size="10" fill="#94a3b8"><%= trend[:year] %></text>
+        <% end %>
+        <line x1="55" y1="230" x2="<%= [trend_chart_w, 500].max - 10 %>" y2="230" stroke="#cbd5e1" stroke-width="1"/>
+      </svg>
+    <% else %>
+      <div class="empty-state text-center">No historical payroll periods found.</div>
+    <% end %>
+  </div>
+  <details class="chart-details">
+    <summary class="chart-details-toggle">Show detailed table</summary>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th style="text-align: right;">Total Processed</th>
+            <th style="text-align: right;">Paid Count</th>
+            <th style="text-align: right;">Pending Count</th>
+            <th>Paid Totals by Currency</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if @insights.recent_periods_trends.empty? %>
+            <tr><td colspan="5" class="text-center empty-state">No historical payroll periods found.</td></tr>
+          <% else %>
+            <% @insights.recent_periods_trends.each do |trend| %>
+              <tr>
+                <td class="font-medium"><%= trend[:period_name] %></td>
+                <td style="text-align: right;"><%= number_with_delimiter(trend[:total_count]) %></td>
+                <td style="text-align: right; color: #10b981;" class="font-medium"><%= number_with_delimiter(trend[:paid_count]) %></td>
+                <td style="text-align: right; color: #f59e0b;" class="font-medium"><%= number_with_delimiter(trend[:pending_count]) %></td>
+                <td>
+                  <% if trend[:paid_by_currency].any? %>
+                    <% trend[:paid_by_currency].each do |curr, amount| %>
+                      <% symbol = EmployeesHelper::CURRENCY_SYMBOLS[curr] || "#{curr} " %>
+                      <span style="display: inline-block; margin-right: 8px; font-size: 13px;">
+                        <strong><%= symbol %><%= number_with_precision(amount, precision: 2, delimiter: ",") %></strong> (<%= curr %>)
+                      </span>
+                    <% end %>
+                  <% else %>
+                    <span class="text-muted text-sm">None paid</span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </details>
+</div>

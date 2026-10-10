@@ -33,7 +33,7 @@
         </div>
 
         <nav class="sidebar-nav">
-          <%= link_to root_path, class: "nav-item #{'active' if current_page?(root_path) && controller_name != 'employees'}" do %>
+          <%= link_to root_path, class: "nav-item #{'active' if controller_name == 'dashboards'}" do %>
             <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="7" height="9"></rect>
               <rect x="14" y="3" width="7" height="5"></rect>
@@ -68,15 +68,6 @@
             </svg>
             <span>Monthly Salaries</span>
           <% end %>
-
-          <a href="#" class="nav-item">
-            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="20" x2="18" y2="10"></line>
-              <line x1="12" y1="20" x2="12" y2="4"></line>
-              <line x1="6" y1="20" x2="6" y2="14"></line>
-            </svg>
-            <span>Insights</span>
-          </a>
         </nav>
       </aside>
 
