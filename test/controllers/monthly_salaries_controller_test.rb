@@ -334,4 +334,100 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
     follow_redirect!
     assert_select ".alert-danger", text: /Year must be an integer/
   end
+
+  # ==================================
+  # Period Synchronization Tests
+  # ==================================
+
+  test "visiting with year and month params shows the selected period in the Period Summary header" do
+    get monthly_salaries_url, params: { year: 2025, month: 6 }
+    assert_response :success
+
+    assert_select "h2", text: /Period Summary: June 2025/
+    assert_select "p", text: /Selected Period:.*June 2025/
+  end
+
+  test "visiting with year and month params reflects them in the form selects" do
+    get monthly_salaries_url, params: { year: 2025, month: 6 }
+    assert_response :success
+
+    assert_select "select[name='year'] option[selected]", text: "2025"
+    assert_select "select[name='month'] option[selected]", text: "June"
+  end
+
+  test "cross-navigation link to Attendance carries the selected year and month" do
+    get monthly_salaries_url, params: { year: 2025, month: 6 }
+    assert_response :success
+
+    assert_select "a[href*='year=2025'][href*='month=6']", text: /Attendance/
+  end
+
+  test "sidebar Monthly Salaries link preserves year and month when params are present" do
+    get monthly_salaries_url, params: { year: 2025, month: 6 }
+    assert_response :success
+
+    assert_select "aside.sidebar" do
+      assert_select "a.nav-item[href*='year=2025'][href*='month=6']", text: /Monthly Salaries/
+    end
+  end
+
+  test "sidebar Attendance link preserves year and month when params are present" do
+    get monthly_salaries_url, params: { year: 2025, month: 6 }
+    assert_response :success
+
+    assert_select "aside.sidebar" do
+      assert_select "a.nav-item[href*='year=2025'][href*='month=6']", text: /Attendance/
+    end
+  end
+
+  test "calculate salaries action redirects with the selected year and month in the URL" do
+    emp = Employee.create!(employee_number: "EMP_MS_SYNC1", name: "Sync Calc", country: @us, department: @engineering)
+    emp.salaries.create!(annual_salary: 60_000, effective_from: Date.new(2025, 1, 1))
+    period = Period.create!(year: 2025, month: 6)
+    Attendance.create!(employee: emp, period: period, working_days: 20, present_days: 20)
+
+    post monthly_salaries_url, params: { year: 2025, month: 6 }
+    assert_redirected_to monthly_salaries_path(year: "2025", month: "6")
+
+    follow_redirect!
+    assert_select "h2", text: /Period Summary: June 2025/
+  end
+
+  test "process salaries action redirects with the selected year and month in the URL" do
+    emp = Employee.create!(employee_number: "EMP_MS_SYNC2", name: "Sync Proc", country: @us, department: @engineering)
+    period = Period.create!(year: 2025, month: 4)
+    MonthlySalary.create!(employee: emp, period: period, monthly_salary: 5000, payable_amount: 5000, status: "Pending")
+
+    post process_salaries_monthly_salaries_url, params: { year: 2025, month: 4 }
+    assert_redirected_to monthly_salaries_path(year: "2025", month: "4")
+
+    follow_redirect!
+    assert_select "h2", text: /Period Summary: April 2025/
+  end
+
+  test "missing year and month params default to the current month on the index page" do
+    get monthly_salaries_url
+    assert_response :success
+
+    current = Date.current
+    assert_select "h2", text: /Period Summary: #{Date::MONTHNAMES[current.month]} #{current.year}/
+  end
+
+  test "invalid year param shows an alert and falls back to the current month" do
+    get monthly_salaries_url, params: { year: 1800, month: 6 }
+    assert_response :success
+
+    current = Date.current
+    assert_select ".alert-danger", text: /Year must be an integer greater than 1900/
+    assert_select "h2", text: /Period Summary: #{Date::MONTHNAMES[current.month]} #{current.year}/
+  end
+
+  test "invalid month param shows an alert and falls back to the current month" do
+    get monthly_salaries_url, params: { year: 2025, month: 99 }
+    assert_response :success
+
+    current = Date.current
+    assert_select ".alert-danger", text: /Month must be between 1 and 12/
+    assert_select "h2", text: /Period Summary: #{Date::MONTHNAMES[current.month]} #{current.year}/
+  end
 end

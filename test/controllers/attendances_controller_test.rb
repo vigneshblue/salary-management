@@ -169,4 +169,85 @@ class AttendancesControllerTest < ActionDispatch::IntegrationTest
     follow_redirect!
     assert_select ".alert-success", text: /No employees found in the system to generate attendance for/
   end
+
+  # ==================================
+  # Period Synchronization Tests
+  # ==================================
+
+  test "visiting with year and month params shows the selected period in the status header" do
+    get attendances_url, params: { year: 2025, month: 6 }
+    assert_response :success
+
+    assert_select "h2", text: /Selected Period Status: June 2025/
+    assert_select "p", text: /Selected Period:.*June 2025/
+  end
+
+  test "visiting with year and month params reflects them in the Generate form selects" do
+    get attendances_url, params: { year: 2025, month: 6 }
+    assert_response :success
+
+    assert_select "select[name='year'] option[selected]", text: "2025"
+    assert_select "select[name='month'] option[selected]", text: "June"
+  end
+
+  test "cross-navigation link to Monthly Salaries carries the selected year and month" do
+    get attendances_url, params: { year: 2025, month: 6 }
+    assert_response :success
+
+    assert_select "a[href*='year=2025'][href*='month=6']", text: /Monthly Salaries/
+  end
+
+  test "sidebar Attendance link preserves year and month when params are present" do
+    get attendances_url, params: { year: 2025, month: 6 }
+    assert_response :success
+
+    assert_select "aside.sidebar" do
+      assert_select "a.nav-item[href*='year=2025'][href*='month=6']", text: /Attendance/
+    end
+  end
+
+  test "sidebar Monthly Salaries link preserves year and month when params are present" do
+    get attendances_url, params: { year: 2025, month: 6 }
+    assert_response :success
+
+    assert_select "aside.sidebar" do
+      assert_select "a.nav-item[href*='year=2025'][href*='month=6']", text: /Monthly Salaries/
+    end
+  end
+
+  test "attendance generation redirects with the selected year and month in the URL" do
+    Employee.create!(employee_number: "EMP_SYNC1", name: "Sync Test", country: @us, department: @engineering)
+
+    post attendances_url, params: { year: 2025, month: 6 }
+    assert_redirected_to attendances_path(year: "2025", month: "6")
+
+    follow_redirect!
+    assert_select "h2", text: /Selected Period Status: June 2025/
+  end
+
+  test "missing year and month params default to the current month on the index page" do
+    get attendances_url
+    assert_response :success
+
+    current = Date.current
+    assert_select "h2", text: /Selected Period Status: #{Date::MONTHNAMES[current.month]} #{current.year}/
+  end
+
+  test "invalid year param shows an alert and falls back to the current month" do
+    get attendances_url, params: { year: 1800, month: 6 }
+    assert_response :success
+
+    current = Date.current
+    assert_select ".alert-danger", text: /Year must be an integer greater than 1900/
+    assert_select "h2", text: /Selected Period Status: #{Date::MONTHNAMES[current.month]} #{current.year}/
+  end
+
+  test "invalid month param shows an alert and falls back to the current month" do
+    get attendances_url, params: { year: 2025, month: 99 }
+    assert_response :success
+
+    current = Date.current
+    assert_select ".alert-danger", text: /Month must be between 1 and 12/
+    assert_select "h2", text: /Selected Period Status: #{Date::MONTHNAMES[current.month]} #{current.year}/
+  end
 end

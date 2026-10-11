@@ -29,12 +29,18 @@
 <% end %>
 
 <div class="card mb-6">
-  <div class="card-header border-b p-4 bg-gray-50">
-    <h2 class="font-semibold text-lg m-0">Select Period & Actions</h2>
+  <div class="card-header border-b p-4 bg-gray-50" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+    <div>
+      <h2 class="font-semibold text-lg m-0">Select Period &amp; Actions</h2>
+      <p class="text-muted text-sm m-0">Selected Period: <strong><%= Date::MONTHNAMES[@month] %> <%= @year %></strong></p>
+    </div>
+    <div>
+      <%= link_to "← Go to Attendance", attendances_path(year: @year, month: @month), class: "btn btn-ghost btn-sm" %>
+    </div>
   </div>
   <div class="card-body p-6">
     <p class="text-muted mb-6">
-      Select a period to calculate or process monthly salaries. Calculating salaries creates <strong>Pending</strong> records based on attendance and annual salary. Processing salaries transitions all eligible <strong>Pending</strong> records to <strong>Paid</strong> without recalculating or modifying amounts.
+      Select a period to inspect, calculate, or process monthly salaries. Calculating salaries creates <strong>Pending</strong> records based on attendance and annual salary. Processing salaries transitions all eligible <strong>Pending</strong> records to <strong>Paid</strong> without recalculating or modifying amounts.
     </p>
 
     <div style="display: flex; gap: 24px; align-items: flex-end; flex-wrap: wrap;">
@@ -45,7 +51,8 @@
             <%= f.select :year,
                   options_for_select((2020..2030).to_a.reverse, @year),
                   {},
-                  class: "filter-select w-full" %>
+                  class: "filter-select w-full",
+                  onchange: "window.location.href = '#{monthly_salaries_path}?year=' + this.value + '&month=' + document.getElementById('monthly_salary_month_select').value;" %>
           </div>
 
           <div class="form-group">
@@ -53,7 +60,9 @@
             <%= f.select :month,
                   options_for_select((1..12).map { |m| [Date::MONTHNAMES[m], m] }, @month),
                   {},
-                  class: "filter-select w-full" %>
+                  id: "monthly_salary_month_select",
+                  class: "filter-select w-full",
+                  onchange: "window.location.href = '#{monthly_salaries_path}?year=' + document.querySelector('select[name=\"year\"]').value + '&month=' + this.value;" %>
           </div>
 
           <div class="form-group action-group">

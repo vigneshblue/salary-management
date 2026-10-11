@@ -29,12 +29,18 @@
 <% end %>
 
 <div class="card mb-6">
-  <div class="card-header border-b p-4 bg-gray-50">
-    <h2 class="font-semibold text-lg m-0">Generate Monthly Attendance</h2>
+  <div class="card-header border-b p-4 bg-gray-50" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+    <div>
+      <h2 class="font-semibold text-lg m-0">Generate Monthly Attendance</h2>
+      <p class="text-muted text-sm m-0">Selected Period: <strong><%= Date::MONTHNAMES[@month] %> <%= @year %></strong></p>
+    </div>
+    <div>
+      <%= link_to "Go to Monthly Salaries →", monthly_salaries_path(year: @year, month: @month), class: "btn btn-ghost btn-sm" %>
+    </div>
   </div>
   <div class="card-body p-6">
     <p class="text-muted mb-6">
-      Select a year and month to generate attendance. Working days exclude Saturdays and Sundays.
+      Select a year and month to inspect or generate attendance. Working days exclude Saturdays and Sundays.
       This operation is idempotent: if records already exist for the selected month, they will be preserved without duplicate creation.
     </p>
 
@@ -45,7 +51,8 @@
           <%= f.select :year,
                 options_for_select((2020..2030).to_a.reverse, @year),
                 {},
-                class: "filter-select w-full" %>
+                class: "filter-select w-full",
+                onchange: "window.location.href = '#{attendances_path}?year=' + this.value + '&month=' + document.getElementById('attendance_month_select').value;" %>
         </div>
 
         <div class="form-group">
@@ -53,7 +60,9 @@
           <%= f.select :month,
                 options_for_select((1..12).map { |m| [Date::MONTHNAMES[m], m] }, @month),
                 {},
-                class: "filter-select w-full" %>
+                id: "attendance_month_select",
+                class: "filter-select w-full",
+                onchange: "window.location.href = '#{attendances_path}?year=' + document.querySelector('select[name=\"year\"]').value + '&month=' + this.value;" %>
         </div>
 
         <div class="form-group action-group">
