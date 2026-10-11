@@ -38,8 +38,29 @@ departments_data.each do |dept_name|
   dept = Department.find_or_create_by!(name: dept_name)
   departments_by_name[dept_name] = dept
 end
-departments_list = departments_by_name.values
 puts "Seeded #{departments_by_name.size} departments."
+
+# Weighted department distribution (must sum to 100):
+#   Engineering 28% | Sales 20% | Operations 16% | Marketing 12%
+#   Product 10%     | Finance 8% | HR 6%
+# Stored as cumulative upper bounds for a [0, 99] bucket lookup.
+DEPT_WEIGHTS = [
+  { name: "Engineering", cum: 28 },
+  { name: "Sales",       cum: 48 },
+  { name: "Operations",  cum: 64 },
+  { name: "Marketing",   cum: 76 },
+  { name: "Product",     cum: 86 },
+  { name: "Finance",     cum: 94 },
+  { name: "HR",          cum: 100 }
+].freeze
+
+# Returns a department object deterministically for a given 1-based employee index.
+# Uses a multiplicative hash so results are identical on every run with no PRNG state.
+def pick_department(emp_idx, departments_by_name)
+  bucket = (emp_idx * 2_654_435_761) % 100
+  weight = DEPT_WEIGHTS.find { |w| bucket < w[:cum] }
+  departments_by_name[weight[:name]]
+end
 
 # 3. Deterministic Names for 5 Regions
 names_by_country = {
@@ -92,8 +113,8 @@ country_allocations.each do |alloc|
     l_name = names[:last][((current_emp_idx * 7) + c_idx) % names[:last].size]
     full_name = "#{f_name} #{l_name}"
 
-    # Department distribution
-    dept = departments_list[(current_emp_idx + (c_idx % 3)) % departments_list.size]
+    # Department distribution — weighted, deterministic
+    dept = pick_department(current_emp_idx, departments_by_name)
 
     employee_records << {
       employee_number: emp_num,
