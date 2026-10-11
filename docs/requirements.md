@@ -62,7 +62,6 @@ The application will support employees across multiple countries and currencies.
 - Payment dates and individual payment transactions. The application tracks the monthly salary processing status rather than actual financial transactions.
 - Live currency exchange rate integration, as clarified by the assessment team, is not required. Deterministic exchange rates are sufficient for this assessment.
 - Country management, including adding or updating countries and their exchange rates. The seed data will use a fixed set of five countries to demonstrate the multi-country salary management workflow.
-- Creating and updating employee details other than salary, as the assessment focuses on salary management rather than general employee data management.
 
 These features are excluded to keep the assessment focused on the core salary management and monthly salary processing workflow.
 
