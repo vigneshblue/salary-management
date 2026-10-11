@@ -55,7 +55,7 @@
   </div>
 </div>
 
-<div class="card table-card">
+<div class="card table-card mb-6">
   <div class="card-header border-b border-color p-4 bg-gray-50">
     <h2 class="font-semibold text-lg m-0">Salary History</h2>
   </div>
@@ -85,3 +85,80 @@
     </table>
   </div>
 </div>
+
+<div class="card table-card mb-6">
+  <div class="card-header border-b border-color p-4 bg-gray-50">
+    <h2 class="font-semibold text-lg m-0">Attendance History</h2>
+  </div>
+
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Period</th>
+          <th>Working Days</th>
+          <th>Present Days</th>
+          <th>Absent Days</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if @attendances.empty? %>
+          <tr>
+            <td colspan="4" class="text-center empty-state attendance-empty-state">No attendance records available yet.</td>
+          </tr>
+        <% else %>
+          <% @attendances.each do |attendance| %>
+            <tr id="<%= dom_id(attendance) %>">
+              <td class="font-medium attendance-period"><%= Date::MONTHNAMES[attendance.period.month] %> <%= attendance.period.year %></td>
+              <td class="attendance-working-days"><%= attendance.working_days %></td>
+              <td class="attendance-present-days"><%= attendance.present_days %></td>
+              <td class="attendance-absent-days"><%= [attendance.working_days - attendance.present_days, 0].max %></td>
+            </tr>
+          <% end %>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card table-card">
+  <div class="card-header border-b border-color p-4 bg-gray-50">
+    <h2 class="font-semibold text-lg m-0">Monthly Salary &amp; Payment History</h2>
+  </div>
+
+  <div class="table-responsive">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Period</th>
+          <th class="col-salary">Monthly Salary</th>
+          <th class="col-salary">Payable Amount</th>
+          <th>Payment Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if @monthly_salaries.empty? %>
+          <tr>
+            <td colspan="4" class="text-center empty-state monthly-salary-empty-state">No monthly salary records available yet.</td>
+          </tr>
+        <% else %>
+          <% @monthly_salaries.each do |ms| %>
+            <tr id="<%= dom_id(ms) %>">
+              <td class="font-medium monthly-salary-period"><%= Date::MONTHNAMES[ms.period.month] %> <%= ms.period.year %></td>
+              <td class="col-salary monthly-salary-base"><%= format_salary(ms.monthly_salary, @employee.country) %></td>
+              <td class="col-salary font-medium monthly-salary-payable"><%= format_salary(ms.payable_amount, @employee.country) %></td>
+              <td class="monthly-salary-status">
+                <% if ms.status == MonthlySalary::STATUS_PAID %>
+                  <span class="badge badge-success"><%= ms.status %></span>
+                <% else %>
+                  <span class="badge badge-warning"><%= ms.status %></span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>
+

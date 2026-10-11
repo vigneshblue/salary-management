@@ -49,6 +49,8 @@ class EmployeesController < ApplicationController
   def show
     @employee = Employee.includes(:country, :department).find(params[:id])
     @salaries = @employee.salaries.order(effective_from: :desc).to_a
+    @attendances = @employee.attendances.includes(:period).order("periods.year DESC, periods.month DESC").to_a
+    @monthly_salaries = @employee.monthly_salaries.includes(:period).order("periods.year DESC, periods.month DESC").to_a
 
     # We pass the pre-sorted and fetched salaries to a temporary in-memory
     # collection for current_salary if it needs it, or just use current_salary.

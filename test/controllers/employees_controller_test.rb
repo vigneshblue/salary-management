@@ -431,8 +431,10 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    # 1 Employee query, 1 Country query (eager), 1 Department query (eager), 1 Salaries query (for @salaries)
-    assert_operator query_count, :<=, 5, "Expected at most 5 database queries on show page"
+    # Queries on show page include:
+    # 1 Employee query, 1 Country query (eager), 1 Department query (eager), 1 Salaries query (for @salaries),
+    # Attendances + Periods queries, MonthlySalaries + Periods queries
+    assert_operator query_count, :<=, 12, "Expected at most 12 database queries on show page"
   end
 
   # =====================
@@ -744,5 +746,148 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
     emp.reload
     # Employee name must NOT have been updated
     assert_equal "Transactional Test", emp.name
+  end
+
+  # =====================
+  # Attendance and Monthly Salary History on Show Page Tests
+  # =====================
+
+  test "show renders attendance records with correct period, working days, present days, and absent days" do
+    emp = Employee.create!(employee_number: "EMP601", name: "Ada Lovelace", country: @us, department: @engineering)
+    p1 = Period.create!(year: 2026, month: 1)
+    p2 = Period.create!(year: 2026, month: 2)
+
+    emp.attendances.create!(period: p1, working_days: 22, present_days: 20)
+    emp.attendances.create!(period: p2, working_days: 20, present_days: 17)
+
+    get employee_url(emp)
+    assert_response :success
+
+    assert_select "h2", text: "Attendance History"
+    # p2 absent days = 20 - 17 = 3
+    assert_select "tr##{dom_id(emp.attendances.find_by(period: p2))}" do
+      assert_select "td.attendance-period", "February 2026"
+      assert_select "td.attendance-working-days", "20"
+      assert_select "td.attendance-present-days", "17"
+      assert_select "td.attendance-absent-days", "3"
+    end
+
+    # p1 absent days = 22 - 20 = 2
+    assert_select "tr##{dom_id(emp.attendances.find_by(period: p1))}" do
+      assert_select "td.attendance-period", "January 2026"
+      assert_select "td.attendance-working-days", "22"
+      assert_select "td.attendance-present-days", "20"
+      assert_select "td.attendance-absent-days", "2"
+    end
+  end
+
+  test "show renders monthly salary records with correct period, amounts, and payment status badges" do
+    emp = Employee.create!(employee_number: "EMP602", name: "Grace Hopper", country: @us, department: @engineering)
+    p1 = Period.create!(year: 2026, month: 1)
+    p2 = Period.create!(year: 2026, month: 2)
+
+    ms1 = emp.monthly_salaries.create!(
+      period: p1,
+      monthly_salary: 10_000,
+      payable_amount: 10_000,
+      status: MonthlySalary::STATUS_PAID
+    )
+    ms2 = emp.monthly_salaries.create!(
+      period: p2,
+      monthly_salary: 10_000,
+      payable_amount: 8_500,
+      status: MonthlySalary::STATUS_PENDING
+    )
+
+    get employee_url(emp)
+    assert_response :success
+
+    assert_select "h2", text: "Monthly Salary & Payment History"
+    assert_select "tr##{dom_id(ms2)}" do
+      assert_select "td.monthly-salary-period", "February 2026"
+      assert_select "td.monthly-salary-base", text: /\$10,000/
+      assert_select "td.monthly-salary-payable", text: /\$8,500/
+      assert_select "td.monthly-salary-status span.badge-warning", "Pending"
+    end
+
+    assert_select "tr##{dom_id(ms1)}" do
+      assert_select "td.monthly-salary-period", "January 2026"
+      assert_select "td.monthly-salary-base", text: /\$10,000/
+      assert_select "td.monthly-salary-payable", text: /\$10,000/
+      assert_select "td.monthly-salary-status span.badge-success", "Paid"
+    end
+  end
+
+  test "monthly salary amounts are formatted using employee country currency" do
+    emp_in = Employee.create!(employee_number: "EMP603", name: "Vikram Sarabhai", country: @in, department: @engineering)
+    p = Period.create!(year: 2026, month: 3)
+    ms = emp_in.monthly_salaries.create!(
+      period: p,
+      monthly_salary: 100_000,
+      payable_amount: 95_000,
+      status: MonthlySalary::STATUS_PAID
+    )
+
+    get employee_url(emp_in)
+    assert_response :success
+
+    assert_select "tr##{dom_id(ms)}" do
+      assert_select "td.monthly-salary-base", text: /₹100,000/
+      assert_select "td.monthly-salary-payable", text: /₹95,000/
+    end
+  end
+
+  test "both attendance and monthly salary histories are ordered newest period first" do
+    emp = Employee.create!(employee_number: "EMP604", name: "Ordering Tester", country: @us, department: @engineering)
+    p_2025_12 = Period.create!(year: 2025, month: 12)
+    p_2026_01 = Period.create!(year: 2026, month: 1)
+    p_2026_03 = Period.create!(year: 2026, month: 3)
+
+    [ p_2025_12, p_2026_03, p_2026_01 ].each do |p|
+      emp.attendances.create!(period: p, working_days: 20, present_days: 19)
+      emp.monthly_salaries.create!(period: p, monthly_salary: 5000, payable_amount: 4750, status: MonthlySalary::STATUS_PAID)
+    end
+
+    get employee_url(emp)
+    assert_response :success
+
+    # Verify Attendance rows order
+    assert_select "td.attendance-period" do |elements|
+      periods = elements.map(&:text).map(&:strip)
+      assert_equal [ "March 2026", "January 2026", "December 2025" ], periods
+    end
+
+    # Verify Monthly Salary rows order
+    assert_select "td.monthly-salary-period" do |elements|
+      periods = elements.map(&:text).map(&:strip)
+      assert_equal [ "March 2026", "January 2026", "December 2025" ], periods
+    end
+  end
+
+  test "renders clear empty state messages when attendance or monthly salary records do not exist" do
+    emp = Employee.create!(employee_number: "EMP605", name: "Fresh Employee", country: @us, department: @engineering)
+
+    get employee_url(emp)
+    assert_response :success
+
+    assert_select "td.attendance-empty-state", "No attendance records available yet."
+    assert_select "td.monthly-salary-empty-state", "No monthly salary records available yet."
+  end
+
+  test "existing employee details, salary history, and Edit Employee button remain intact" do
+    emp = Employee.create!(employee_number: "EMP606", name: "Legacy Checker", country: @us, department: @engineering)
+    emp.salaries.create!(annual_salary: 80_000, effective_from: Date.new(2026, 1, 1))
+
+    get employee_url(emp)
+    assert_response :success
+
+    assert_select "h1.page-title", "Legacy Checker"
+    assert_select ".employee-number", "EMP606"
+    assert_select ".employee-current-salary", text: /\$80,000/
+    assert_select ".employee-country", "United States"
+    assert_select ".employee-department", "Engineering"
+    assert_select "a.btn-primary[href='#{edit_employee_path(emp)}']", text: "Edit Employee"
+    assert_select "h2", text: "Salary History"
+    assert_select "td.salary-amount", text: /\$80,000/
   end
 end
