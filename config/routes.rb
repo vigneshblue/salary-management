@@ -14,7 +14,7 @@ Rails.application.routes.draw do
 
   resource :dashboard, only: [ :show ]
 
-  resources :employees, only: [ :index, :show ]
+  resources :employees, only: [ :index, :show, :new, :create, :edit, :update ]
   resources :attendances, only: [ :index, :new, :create ]
   resources :monthly_salaries, only: [ :index, :create ] do
     post :process_salaries, on: :collection

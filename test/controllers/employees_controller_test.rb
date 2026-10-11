@@ -434,4 +434,315 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
     # 1 Employee query, 1 Country query (eager), 1 Department query (eager), 1 Salaries query (for @salaries)
     assert_operator query_count, :<=, 5, "Expected at most 5 database queries on show page"
   end
+
+  # =====================
+  # Add Employee Tests
+  # =====================
+
+  test "new employee form renders and dropdowns are populated" do
+    get new_employee_url
+    assert_response :success
+    assert_select "h1.page-title", "Add Employee"
+    assert_select "form[action='#{employees_path}']"
+    assert_select "input[name='employee[employee_number]']"
+    assert_select "input[name='employee[name]']"
+    assert_select "select[name='employee[country_id]']" do
+      assert_select "option", text: "United States"
+      assert_select "option", text: "India"
+    end
+    assert_select "select[name='employee[department_id]']" do
+      assert_select "option", text: "Engineering"
+      assert_select "option", text: "Product"
+    end
+    assert_select "input[name='employee[initial_salary]']"
+    assert_select "input[name='employee[salary_effective_from]']"
+  end
+
+  test "index page includes clear Add Employee button" do
+    get employees_url
+    assert_response :success
+    assert_select "a.btn-primary[href='#{new_employee_path}']", text: "Add Employee"
+  end
+
+  test "valid employee creation creates both Employee and initial Salary records in one transaction" do
+    assert_difference -> { Employee.count } => 1, -> { Salary.count } => 1 do
+      post employees_url, params: {
+        employee: {
+          employee_number: "EMP500",
+          name: "Grace Hopper",
+          country_id: @us.id,
+          department_id: @engineering.id,
+          initial_salary: "120000",
+          salary_effective_from: Date.new(2026, 1, 1).to_s
+        }
+      }
+    end
+
+    created_employee = Employee.find_by!(employee_number: "EMP500")
+    assert_redirected_to employee_path(created_employee)
+    follow_redirect!
+    assert_select ".alert-success", text: /Employee created successfully/
+
+    assert_equal 1, created_employee.salaries.count
+    initial_salary = created_employee.salaries.first
+    assert_equal 120_000.to_d, initial_salary.annual_salary
+    assert_equal Date.new(2026, 1, 1), initial_salary.effective_from
+  end
+
+  test "invalid employee data creates neither employee nor salary record" do
+    assert_no_difference [ "Employee.count", "Salary.count" ] do
+      post employees_url, params: {
+        employee: {
+          employee_number: "",
+          name: "Invalid Employee",
+          country_id: @us.id,
+          department_id: @engineering.id,
+          initial_salary: "100000",
+          salary_effective_from: Date.new(2026, 1, 1).to_s
+        }
+      }
+    end
+
+    assert_response :unprocessable_entity
+    assert_select "h1.page-title", "Add Employee"
+    assert_select ".alert-danger", text: /can't be blank/
+  end
+
+  test "missing or invalid salary data creates neither employee nor salary record" do
+    # Missing salary
+    assert_no_difference [ "Employee.count", "Salary.count" ] do
+      post employees_url, params: {
+        employee: {
+          employee_number: "EMP501",
+          name: "No Salary",
+          country_id: @us.id,
+          department_id: @engineering.id,
+          initial_salary: "",
+          salary_effective_from: Date.new(2026, 1, 1).to_s
+        }
+      }
+    end
+    assert_response :unprocessable_entity
+    assert_select ".alert-danger", text: /can't be blank/
+    assert_nil Employee.find_by(employee_number: "EMP501")
+
+    # Negative salary
+    assert_no_difference [ "Employee.count", "Salary.count" ] do
+      post employees_url, params: {
+        employee: {
+          employee_number: "EMP502",
+          name: "Negative Salary",
+          country_id: @us.id,
+          department_id: @engineering.id,
+          initial_salary: "-500",
+          salary_effective_from: Date.new(2026, 1, 1).to_s
+        }
+      }
+    end
+    assert_response :unprocessable_entity
+    assert_select ".alert-danger", text: /must be greater than or equal to 0/
+    assert_nil Employee.find_by(employee_number: "EMP502")
+
+    # Missing effective date
+    assert_no_difference [ "Employee.count", "Salary.count" ] do
+      post employees_url, params: {
+        employee: {
+          employee_number: "EMP503",
+          name: "No Date",
+          country_id: @us.id,
+          department_id: @engineering.id,
+          initial_salary: "50000",
+          salary_effective_from: ""
+        }
+      }
+    end
+    assert_response :unprocessable_entity
+    assert_select ".alert-danger", text: /can't be blank/
+    assert_nil Employee.find_by(employee_number: "EMP503")
+  end
+
+  test "add employee preserves entered form values upon validation failure" do
+    post employees_url, params: {
+      employee: {
+        employee_number: "EMP504",
+        name: "",
+        country_id: @in.id,
+        department_id: @product.id,
+        initial_salary: "95000",
+        salary_effective_from: "2026-03-01"
+      }
+    }
+
+    assert_response :unprocessable_entity
+    assert_select "input[name='employee[employee_number]'][value='EMP504']"
+    assert_select "input[name='employee[initial_salary]'][value='95000']"
+    assert_select "input[name='employee[salary_effective_from]'][value='2026-03-01']"
+  end
+
+  # =====================
+  # Edit Employee Tests
+  # =====================
+
+  test "show page has Edit Employee button linking to edit form" do
+    emp = Employee.create!(employee_number: "EMP510", name: "Ada Lovelace", country: @us, department: @engineering)
+    get employee_url(emp)
+    assert_response :success
+    assert_select "a.btn-primary[href='#{edit_employee_path(emp)}']", text: "Edit Employee"
+  end
+
+  test "edit form renders existing employee values" do
+    emp = Employee.create!(employee_number: "EMP511", name: "Katherine Johnson", country: @us, department: @engineering)
+    emp.salaries.create!(annual_salary: 80_000, effective_from: Date.new(2026, 1, 1))
+
+    get edit_employee_url(emp)
+    assert_response :success
+    assert_select "h1.page-title", "Edit Employee"
+    assert_select "input[name='employee[employee_number]'][value='EMP511']"
+    assert_select "input[name='employee[name]'][value='Katherine Johnson']"
+    assert_select "select[name='employee[country_id]'] option[selected]", text: "United States"
+    assert_select "select[name='employee[department_id]'] option[selected]", text: "Engineering"
+  end
+
+  test "updating employee details without salary input does not create a Salary record" do
+    emp = Employee.create!(employee_number: "EMP512", name: "Old Name", country: @us, department: @engineering)
+    initial_sal = emp.salaries.create!(annual_salary: 80_000, effective_from: Date.new(2026, 1, 1))
+
+    assert_no_difference "Salary.count" do
+      patch employee_url(emp), params: {
+        employee: {
+          employee_number: "EMP512-NEW",
+          name: "Updated Name",
+          country_id: @in.id,
+          department_id: @product.id,
+          new_salary: "",
+          salary_effective_from: ""
+        }
+      }
+    end
+
+    assert_redirected_to employee_path(emp)
+    emp.reload
+    assert_equal "EMP512-NEW", emp.employee_number
+    assert_equal "Updated Name", emp.name
+    assert_equal @in.id, emp.country_id
+    assert_equal @product.id, emp.department_id
+    assert_equal [ initial_sal ], emp.salaries.to_a
+  end
+
+  test "submitting a salary change creates a new record and preserves existing history" do
+    emp = Employee.create!(employee_number: "EMP513", name: "Salary Raiser", country: @us, department: @engineering)
+    old_sal = emp.salaries.create!(annual_salary: 70_000, effective_from: Date.new(2025, 1, 1))
+
+    assert_difference "Salary.count", 1 do
+      patch employee_url(emp), params: {
+        employee: {
+          employee_number: "EMP513",
+          name: "Salary Raiser",
+          country_id: @us.id,
+          department_id: @engineering.id,
+          new_salary: "85000",
+          salary_effective_from: "2026-01-01"
+        }
+      }
+    end
+
+    assert_redirected_to employee_path(emp)
+    emp.reload
+    assert_equal 2, emp.salaries.count
+    assert_includes emp.salaries, old_sal
+
+    new_sal = emp.salaries.find_by!(effective_from: Date.new(2026, 1, 1))
+    assert_equal 85_000.to_d, new_sal.annual_salary
+
+    # Confirm history display on show page contains both records
+    get employee_url(emp)
+    assert_response :success
+    assert_select "td.salary-amount", text: /\$85,000/
+    assert_select "td.salary-amount", text: /\$70,000/
+  end
+
+  test "future-effective salaries do not replace the current salary prematurely" do
+    emp = Employee.create!(employee_number: "EMP514", name: "Future Raiser", country: @us, department: @engineering)
+    emp.salaries.create!(annual_salary: 60_000, effective_from: Date.current - 6.months)
+
+    # Schedule raise in 3 months
+    patch employee_url(emp), params: {
+      employee: {
+        employee_number: "EMP514",
+        name: "Future Raiser",
+        country_id: @us.id,
+        department_id: @engineering.id,
+        new_salary: "90000",
+        salary_effective_from: (Date.current + 3.months).to_s
+      }
+    }
+
+    assert_redirected_to employee_path(emp)
+    emp.reload
+
+    # Current salary must remain 60,000
+    assert_equal 60_000.to_d, emp.current_annual_salary
+
+    get employee_url(emp)
+    assert_response :success
+    assert_select ".employee-current-salary", text: /\$60,000/
+    assert_select ".employee-current-salary", text: /\$90,000/, count: 0
+    # But salary history table includes the future row
+    assert_select "td.salary-amount", text: /\$90,000/
+  end
+
+  test "duplicate effective dates on salary change are handled gracefully" do
+    emp = Employee.create!(employee_number: "EMP515", name: "Dup Date Tester", country: @us, department: @engineering)
+    emp.salaries.create!(annual_salary: 50_000, effective_from: Date.new(2026, 1, 1))
+
+    assert_no_difference "Salary.count" do
+      patch employee_url(emp), params: {
+        employee: {
+          employee_number: "EMP515",
+          name: "Dup Date Tester",
+          country_id: @us.id,
+          department_id: @engineering.id,
+          new_salary: "60000",
+          salary_effective_from: "2026-01-01"
+        }
+      }
+    end
+
+    assert_response :unprocessable_entity
+    assert_select ".alert-danger", text: /has already been taken/
+    emp.reload
+    assert_equal 50_000.to_d, emp.salaries.first.annual_salary
+  end
+
+  test "invalid employee IDs on edit and update return 404" do
+    get edit_employee_url(-1)
+    assert_response :not_found
+
+    patch employee_url(-1), params: { employee: { name: "Ghost" } }
+    assert_response :not_found
+  end
+
+  test "failed updates do not leave partially saved employee or salary changes" do
+    emp = Employee.create!(employee_number: "EMP516", name: "Transactional Test", country: @us, department: @engineering)
+    emp.salaries.create!(annual_salary: 50_000, effective_from: Date.new(2026, 1, 1))
+
+    # We try to change name to "Renamed Person" but pass an invalid salary amount (-100)
+    assert_no_difference "Salary.count" do
+      patch employee_url(emp), params: {
+        employee: {
+          employee_number: "EMP516",
+          name: "Renamed Person",
+          country_id: @us.id,
+          department_id: @engineering.id,
+          new_salary: "-100",
+          salary_effective_from: "2026-06-01"
+        }
+      }
+    end
+
+    assert_response :unprocessable_entity
+    emp.reload
+    # Employee name must NOT have been updated
+    assert_equal "Transactional Test", emp.name
+  end
 end

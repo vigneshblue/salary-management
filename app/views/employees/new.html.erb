@@ -1,0 +1,105 @@
+<% content_for :title, "Add Employee — ACME HR" %>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Add Employee</h1>
+    <p class="page-subtitle">Create a new employee and their initial compensation record</p>
+  </div>
+  <div>
+    <%= link_to "← Back to Employees", employees_path, class: "btn btn-ghost" %>
+  </div>
+</div>
+
+<div class="card mb-6" style="max-width: 720px;">
+  <div class="card-body p-6">
+    <%= form_with model: @employee, url: employees_path, method: :post, local: true do |f| %>
+      <% if @employee.errors.any? || (@salary && @salary.errors.any?) %>
+        <div class="alert alert-danger" style="margin-bottom: 24px; align-items: flex-start;">
+          <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <div>
+            <div class="font-semibold mb-1">Please fix the following errors:</div>
+            <ul style="margin: 0; padding-left: 20px;">
+              <% @employee.errors.full_messages.each do |msg| %>
+                <li><%= msg %></li>
+              <% end %>
+              <% if @salary %>
+                <% @salary.errors.full_messages.each do |msg| %>
+                  <% unless msg.start_with?("Employee") %>
+                    <li><%= msg %></li>
+                  <% end %>
+                <% end %>
+              <% end %>
+            </ul>
+          </div>
+        </div>
+      <% end %>
+
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        <div class="form-group">
+          <%= f.label :employee_number, "Employee Number", class: "form-label" %>
+          <%= f.text_field :employee_number, class: "search-input", placeholder: "e.g. EMP001", required: true %>
+        </div>
+
+        <div class="form-group">
+          <%= f.label :name, "Employee Name", class: "form-label" %>
+          <%= f.text_field :name, class: "search-input", placeholder: "Full name", required: true %>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div class="form-group">
+            <%= f.label :country_id, "Country", class: "form-label" %>
+            <%= f.select :country_id,
+                  options_from_collection_for_select(@countries, :id, :name, @employee.country_id),
+                  { include_blank: "Select Country" },
+                  class: "filter-select w-full",
+                  required: true %>
+          </div>
+
+          <div class="form-group">
+            <%= f.label :department_id, "Department", class: "form-label" %>
+            <%= f.select :department_id,
+                  options_from_collection_for_select(@departments, :id, :name, @employee.department_id),
+                  { include_blank: "Select Department" },
+                  class: "filter-select w-full",
+                  required: true %>
+          </div>
+        </div>
+
+        <div style="border-top: 1px solid var(--border-color); padding-top: 20px; margin-top: 4px;">
+          <h2 class="font-semibold text-lg mb-1" style="color: var(--text-main);">Initial Compensation</h2>
+          <p class="text-sm text-muted mb-4">An initial salary record is required to onboard this employee.</p>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="form-group">
+              <%= label_tag "employee[initial_salary]", "Initial Annual Salary", class: "form-label" %>
+              <%= number_field_tag "employee[initial_salary]",
+                    @initial_salary,
+                    step: "0.01",
+                    min: "0",
+                    class: "search-input",
+                    placeholder: "e.g. 75000.00",
+                    required: true %>
+            </div>
+
+            <div class="form-group">
+              <%= label_tag "employee[salary_effective_from]", "Salary Effective Date", class: "form-label" %>
+              <%= date_field_tag "employee[salary_effective_from]",
+                    @salary_effective_from,
+                    class: "search-input",
+                    required: true %>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 8px;">
+          <%= f.submit "Create Employee", class: "btn btn-primary" %>
+          <%= link_to "Cancel", employees_path, class: "btn btn-ghost" %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>

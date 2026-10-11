@@ -5,10 +5,32 @@
     <h1 class="page-title"><%= @employee.name %></h1>
     <p class="page-subtitle">Employee Details</p>
   </div>
-  <div>
+  <div style="display: flex; gap: 8px;">
+    <%= link_to "Edit Employee", edit_employee_path(@employee), class: "btn btn-primary" %>
     <%= link_to "← Back to Employees", employees_path, class: "btn btn-ghost" %>
   </div>
 </div>
+
+<% if flash[:notice] %>
+  <div class="alert alert-success">
+    <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+    </svg>
+    <span><%= flash[:notice] %></span>
+  </div>
+<% end %>
+
+<% if flash[:alert] %>
+  <div class="alert alert-danger">
+    <svg class="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="12" y1="8" x2="12" y2="12"></line>
+      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+    </svg>
+    <span><%= flash[:alert] %></span>
+  </div>
+<% end %>
 
 <div class="card mb-6">
   <div class="card-body p-6">
