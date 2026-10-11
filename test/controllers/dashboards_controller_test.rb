@@ -58,25 +58,30 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
     assert_select "svg.chart-headcount-dept title", text: /Sales/
   end
 
-  test "salary distribution chart renders with currency labels" do
+  test "salary distribution chart renders with selected reporting currency labels" do
     emp_us = Employee.create!(employee_number: "EMP001", name: "Alice", country: @us, department: @engineering)
     emp_in = Employee.create!(employee_number: "EMP002", name: "Bob", country: @in, department: @sales)
 
     emp_us.salaries.create!(annual_salary: 100_000, effective_from: Date.current - 1.month)
     emp_in.salaries.create!(annual_salary: 1_500_000, effective_from: Date.current - 1.month)
 
+    # In default INR:
     get root_url
     assert_response :success
 
     assert_select "svg.chart-salary-country"
-    assert_select "svg.chart-salary-country text", text: "USD"
-    assert_select "svg.chart-salary-country text", text: "INR"
+    assert_select "svg.chart-salary-country text", text: "INR", count: 2
+
+    # In USD:
+    get root_url, params: { currency: "USD" }
+    assert_response :success
+    assert_select "svg.chart-salary-country text", text: "USD", count: 2
   end
 
   test "payroll trend chart renders with period data" do
     emp = Employee.create!(employee_number: "EMP001", name: "Alice", country: @us, department: @engineering)
     p1 = Period.create!(year: 2026, month: 1)
-    MonthlySalary.create!(employee: emp, period: p1, monthly_salary: 5000, payable_amount: 5000, status: "Paid")
+    MonthlySalary.create!(employee: emp, period: period = p1, monthly_salary: 5000, payable_amount: 5000, status: "Paid")
 
     get root_url
     assert_response :success
@@ -95,15 +100,16 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
     # Future raise: $120,000 (effective next month)
     emp.salaries.create!(annual_salary: 120_000, effective_from: Date.current + 1.month)
 
-    get dashboard_url
+    # In USD:
+    get dashboard_url, params: { currency: "USD" }
     assert_response :success
 
-    # Should report $80,000 as average and min/max, NOT $120,000 or $50,000
-    assert_select "td.col-salary", text: /\$80,000\.00/
-    assert_select "td.col-salary", text: /\$120,000\.00/, count: 0
+    # Should report $80,000 as average and min/max in USD, NOT $120,000 or $50,000
+    assert_select "td.country-avg-salary", text: /\$80,000\.00/
+    assert_select "td.country-avg-salary", text: /\$120,000\.00/, count: 0
   end
 
-  test "currency separation: does not merge amounts across currencies" do
+  test "department breakdown reports converted values in selected currency" do
     emp_us1 = Employee.create!(employee_number: "EMP004", name: "US 1", country: @us, department: @engineering)
     emp_us2 = Employee.create!(employee_number: "EMP005", name: "US 2", country: @us, department: @engineering)
     emp_in = Employee.create!(employee_number: "EMP006", name: "IN 1", country: @in, department: @engineering)
@@ -115,18 +121,24 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
     get dashboard_url
     assert_response :success
 
-    # In Country breakdown:
-    # US average: $110,000
-    assert_select "td.col-salary", text: /\$110,000\.00/
-    # IN average: ₹1,500,000
-    assert_select "td.col-salary", text: /₹1,500,000\.00/
+    # In Country breakdown (default currency INR):
+    # US average: ($100k + $120k)/2 = $110k -> 110k * 83 = ₹9,130,000.00
+    # IN average: ₹1,500,000.00
+    assert_select "#country-salary-united-states .country-avg-salary", text: /₹9,130,000\.00/
+    assert_select "#country-salary-india .country-avg-salary", text: /₹1,500,000\.00/
 
-    # In Department breakdown:
-    # Engineering appears separately for USD and INR
-    assert_select "td.dept-salary-name", text: "Engineering", count: 2
+    # In Department breakdown with default currency INR:
+    # Engineering combines US 1 ($100k -> ₹8.3M), US 2 ($120k -> ₹9.96M), IN 1 (₹1.5M)
+    # Min: 1,500,000.00
+    # Max: 9,960,000.00
+    # Avg: (8.3M + 9.96M + 1.5M)/3 = 19.76M / 3 = 6,586,666.67
+    assert_select "td.dept-salary-name", text: "Engineering", count: 1
+    assert_select "td.dept-min-salary", text: /₹1,500,000\.00/
+    assert_select "td.dept-max-salary", text: /₹9,960,000\.00/
+    assert_select "td.dept-avg-salary", text: /₹6,586,666\.67/
   end
 
-  test "monthly payroll insights separates Paid and Pending counts and totals" do
+  test "monthly payroll insights converts Paid and Pending totals into selected currency" do
     emp1 = Employee.create!(employee_number: "EMP007", name: "User Paid", country: @us, department: @engineering)
     emp2 = Employee.create!(employee_number: "EMP008", name: "User Pending", country: @us, department: @engineering)
 
@@ -134,19 +146,18 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
     MonthlySalary.create!(employee: emp1, period: period, monthly_salary: 5000, payable_amount: 4500, status: "Paid")
     MonthlySalary.create!(employee: emp2, period: period, monthly_salary: 6000, payable_amount: 5500, status: "Pending")
 
+    # Default currency is INR: $4,500 * 83 = ₹373,500.00; $5,500 * 83 = ₹456,500.00
     get dashboard_url, params: { year: 2026, month: 3 }
     assert_response :success
 
-    # Paid card
     assert_select ".stat-card", text: /Paid Employee Count/ do
       assert_select ".stat-value", text: /1/
-      assert_select "div", text: /\$4,500\.00 \(USD\)/
+      assert_select ".paid-total-converted", text: /₹373,500\.00 \(INR\)/
     end
 
-    # Pending card
     assert_select ".stat-card", text: /Pending Employee Count/ do
       assert_select ".stat-value", text: /1/
-      assert_select "div", text: /\$5,500\.00 \(USD\)/
+      assert_select ".pending-total-converted", text: /₹456,500\.00 \(INR\)/
     end
   end
 
@@ -176,5 +187,168 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".empty-state", text: /No department data available/
     assert_select ".empty-state", text: /No salary records available/
     assert_select ".empty-state", text: /No historical payroll periods found/
+  end
+
+  # =====================
+  # Currency Selector Tests
+  # =====================
+
+  test "default reporting currency is INR" do
+    get root_url
+    assert_response :success
+    assert_select "select[name='currency']" do
+      assert_select "option[selected][value='INR']"
+    end
+    assert_select "h2", text: /Annual Salary Insights by Department \(INR\)/
+    assert_select "h2", text: /Monthly Payroll Insights \(INR\)/
+  end
+
+  test "selecting another currency updates department and monthly payroll sections" do
+    emp = Employee.create!(employee_number: "EMP020", name: "Currency Switcher", country: @us, department: @engineering)
+    emp.salaries.create!(annual_salary: 83_000, effective_from: Date.current - 1.month)
+    period = Period.create!(year: 2026, month: 4)
+    MonthlySalary.create!(employee: emp, period: period, monthly_salary: 8300, payable_amount: 8300, status: "Paid")
+
+    # In USD:
+    # 83,000 USD converted to USD = $83,000.00
+    # Monthly paid: 8,300 USD converted to USD = $8,300.00
+    get root_url, params: { currency: "USD", year: 2026, month: 4 }
+    assert_response :success
+
+    assert_select "select[name='currency'] option[selected][value='USD']"
+    assert_select "h2", text: /Annual Salary Insights by Department \(USD\)/
+    assert_select "h2", text: /Monthly Payroll Insights \(USD\)/
+
+    assert_select "td.dept-min-salary", text: /\$83,000\.00/
+    assert_select "td.dept-avg-salary", text: /\$83,000\.00/
+    assert_select "td.dept-max-salary", text: /\$83,000\.00/
+
+    assert_select ".paid-total-converted", text: /\$8,300\.00 \(USD\)/
+  end
+
+  test "department min, avg, and max use converted values before calculating aggregates" do
+    # US employee: 83,000 USD (at 83 INR/USD => 6,889,000 INR)
+    # IN employee: 3,444,500 INR
+    emp1 = Employee.create!(employee_number: "EMP021", name: "US Dev", country: @us, department: @engineering)
+    emp2 = Employee.create!(employee_number: "EMP022", name: "IN Dev", country: @in, department: @engineering)
+
+    emp1.salaries.create!(annual_salary: 83_000, effective_from: Date.current - 1.month)
+    emp2.salaries.create!(annual_salary: 3_444_500, effective_from: Date.current - 1.month)
+
+    # When viewing in USD:
+    # emp1 in USD = 83,000.00
+    # emp2 in USD = 3,444,500 / 83 = 41,500.00
+    # Min = 41,500.00, Max = 83,000.00, Avg = (83,000 + 41,500)/2 = 62,250.00
+    get root_url, params: { currency: "USD" }
+    assert_response :success
+
+    assert_select "td.dept-min-salary", text: /\$41,500\.00/
+    assert_select "td.dept-max-salary", text: /\$83,000\.00/
+    assert_select "td.dept-avg-salary", text: /\$62,250\.00/
+  end
+
+  test "monthly paid and pending totals use converted values without altering employee counts" do
+    emp1 = Employee.create!(employee_number: "EMP023", name: "US Paid", country: @us, department: @engineering)
+    emp2 = Employee.create!(employee_number: "EMP024", name: "IN Pending", country: @in, department: @engineering)
+
+    period = Period.create!(year: 2026, month: 5)
+    # 100 USD paid (100 * 83 = 8300 INR)
+    MonthlySalary.create!(employee: emp1, period: period, monthly_salary: 100, payable_amount: 100, status: "Paid")
+    # 8300 INR pending
+    MonthlySalary.create!(employee: emp2, period: period, monthly_salary: 8300, payable_amount: 8300, status: "Pending")
+
+    # In USD:
+    # Paid: 100 USD = $100.00
+    # Pending: 8300 INR / 83 = $100.00
+    get root_url, params: { currency: "USD", year: 2026, month: 5 }
+    assert_response :success
+
+    assert_select ".stat-card", text: /Paid Employee Count/ do
+      assert_select ".stat-value", text: /1/
+      assert_select ".paid-total-converted", text: /\$100\.00 \(USD\)/
+    end
+
+    assert_select ".stat-card", text: /Pending Employee Count/ do
+      assert_select ".stat-value", text: /1/
+      assert_select ".pending-total-converted", text: /\$100\.00 \(USD\)/
+    end
+  end
+
+  test "invalid currency input falls back safely to INR" do
+    get root_url, params: { currency: "INVALID_XYZ" }
+    assert_response :success
+
+    assert_select "select[name='currency'] option[selected][value='INR']"
+    assert_select "h2", text: /Annual Salary Insights by Department \(INR\)/
+    assert_select "h2", text: /Monthly Payroll Insights \(INR\)/
+  end
+
+  test "selected currency is retained when changing reporting period" do
+    period = Period.create!(year: 2026, month: 6)
+
+    get root_url, params: { currency: "GBP", year: 2026, month: 6 }
+    assert_response :success
+
+    # Ensure period form includes hidden currency field with GBP
+    assert_select "form.attendance-form input[type='hidden'][name='currency'][value='GBP']"
+    assert_select "select[name='currency'] option[selected][value='GBP']"
+  end
+
+  test "annual salary distribution by country uses converted values in selected currency and excludes future-effective salaries" do
+    emp_us1 = Employee.create!(employee_number: "EMP030", name: "US Worker 1", country: @us, department: @engineering)
+    emp_us2 = Employee.create!(employee_number: "EMP031", name: "US Worker 2", country: @us, department: @engineering)
+    emp_in = Employee.create!(employee_number: "EMP032", name: "IN Worker", country: @in, department: @sales)
+
+    # US Worker 1: 50,000 USD (past) -> 80,000 USD (current) -> 150,000 USD (future)
+    emp_us1.salaries.create!(annual_salary: 50_000, effective_from: Date.current - 1.year)
+    emp_us1.salaries.create!(annual_salary: 80_000, effective_from: Date.current - 1.month)
+    emp_us1.salaries.create!(annual_salary: 150_000, effective_from: Date.current + 1.month)
+
+    # US Worker 2: 120,000 USD (current)
+    emp_us2.salaries.create!(annual_salary: 120_000, effective_from: Date.current - 1.month)
+
+    # IN Worker: 1,660,000 INR (current)
+    emp_in.salaries.create!(annual_salary: 1_660_000, effective_from: Date.current - 1.month)
+
+    # Viewing in USD:
+    # US country min: $80,000, max: $120,000, avg: ($80,000 + $120,000)/2 = $100,000 (future $150,000 excluded)
+    # IN country: 1,660,000 INR / 83 = $20,000
+    get root_url, params: { currency: "USD" }
+    assert_response :success
+
+    assert_select "h2", text: /Annual Salary Distribution by Country \(USD\)/
+
+    # Check US row
+    assert_select "#country-salary-united-states" do
+      assert_select ".country-min-salary", text: /\$80,000\.00/
+      assert_select ".country-max-salary", text: /\$120,000\.00/
+      assert_select ".country-avg-salary", text: /\$100,000\.00/
+    end
+
+    # Check IN row
+    assert_select "#country-salary-india" do
+      assert_select ".country-min-salary", text: /\$20,000\.00/
+      assert_select ".country-max-salary", text: /\$20,000\.00/
+      assert_select ".country-avg-salary", text: /\$20,000\.00/
+    end
+
+    # Viewing in INR (default):
+    # US Worker 1 ($80k) -> 6,640,000 INR
+    # US Worker 2 ($120k) -> 9,960,000 INR
+    # US country min: ₹6,640,000.00, max: ₹9,960,000.00, avg: ₹8,300,000.00
+    get root_url, params: { currency: "INR" }
+    assert_response :success
+
+    assert_select "h2", text: /Annual Salary Distribution by Country \(INR\)/
+    assert_select "#country-salary-united-states" do
+      assert_select ".country-min-salary", text: /₹6,640,000\.00/
+      assert_select ".country-max-salary", text: /₹9,960,000\.00/
+      assert_select ".country-avg-salary", text: /₹8,300,000\.00/
+    end
+    assert_select "#country-salary-india" do
+      assert_select ".country-min-salary", text: /₹1,660,000\.00/
+      assert_select ".country-max-salary", text: /₹1,660,000\.00/
+      assert_select ".country-avg-salary", text: /₹1,660,000\.00/
+    end
   end
 end
