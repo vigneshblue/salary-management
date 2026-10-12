@@ -150,6 +150,8 @@
               <td class="monthly-salary-status">
                 <% if ms.status == MonthlySalary::STATUS_PAID %>
                   <span class="badge badge-success"><%= ms.status %></span>
+                <% elsif ms.status == MonthlySalary::STATUS_NOT_PAYABLE %>
+                  <span class="badge badge-muted"><%= ms.status %></span>
                 <% else %>
                   <span class="badge badge-warning"><%= ms.status %></span>
                 <% end %>

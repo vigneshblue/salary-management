@@ -126,6 +126,7 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
     ms = MonthlySalary.find_by!(employee: emp, period: period)
     assert_equal BigDecimal("4000.00"), ms.monthly_salary
     assert_equal BigDecimal("0.00"), ms.payable_amount
+    assert_equal MonthlySalary::STATUS_NOT_PAYABLE, ms.status
   end
 
   test "repeated calculation preserves existing records and creates no duplicates" do
@@ -547,5 +548,82 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
     get monthly_salaries_url, params: { year: 2026, month: 4, q: "NonexistentName" }
     assert_response :success
     assert_select "#monthly_salaries_frame td.empty-state", text: /No monthly salary records match your search or filter/
+  end
+
+  # ==================================
+  # Not Payable Status & Zero Value Tests
+  # ==================================
+
+  test "calculating salaries sets Not Payable for zero payable records and Pending for positive ones" do
+    p = Period.create!(year: 2026, month: 5)
+    emp_zero = Employee.create!(employee_number: "NP001", name: "Zero Worker", country: @us, department: @engineering, joining_date: Date.new(2026, 6, 1))
+    emp_pos  = Employee.create!(employee_number: "NP002", name: "Pos Worker",  country: @us, department: @engineering, joining_date: Date.new(2025, 1, 1))
+
+    emp_pos.salaries.create!(annual_salary: 60_000, effective_from: Date.new(2025, 1, 1))
+
+    Attendance.create!(employee: emp_zero, period: p, working_days: 0, present_days: 0)
+    Attendance.create!(employee: emp_pos,  period: p, working_days: 20, present_days: 20)
+
+    post monthly_salaries_url, params: { year: 2026, month: 5 }
+    assert_redirected_to monthly_salaries_path(year: "2026", month: "5")
+
+    ms_zero = MonthlySalary.find_by!(employee: emp_zero, period: p)
+    ms_pos  = MonthlySalary.find_by!(employee: emp_pos,  period: p)
+
+    assert_equal MonthlySalary::STATUS_NOT_PAYABLE, ms_zero.status
+    assert_equal BigDecimal("0.00"), ms_zero.payable_amount
+
+    assert_equal MonthlySalary::STATUS_PENDING, ms_pos.status
+    assert_equal BigDecimal("5000.00"), ms_pos.payable_amount
+  end
+
+  test "salary processor never marks Not Payable records as Paid and only processes positive Pending records" do
+    p = Period.create!(year: 2026, month: 6)
+    emp_zero = Employee.create!(employee_number: "PROC_NP1", name: "Zero Emp", country: @us, department: @engineering, joining_date: Date.new(2025, 1, 1))
+    emp_pos  = Employee.create!(employee_number: "PROC_NP2", name: "Pos Emp",  country: @us, department: @engineering, joining_date: Date.new(2025, 1, 1))
+
+    ms_zero = MonthlySalary.create!(employee: emp_zero, period: p, monthly_salary: 4000, payable_amount: 0, status: MonthlySalary::STATUS_NOT_PAYABLE)
+    ms_pos  = MonthlySalary.create!(employee: emp_pos,  period: p, monthly_salary: 5000, payable_amount: 5000, status: MonthlySalary::STATUS_PENDING)
+
+    post process_salaries_monthly_salaries_url, params: { year: 2026, month: 6 }
+    assert_redirected_to monthly_salaries_path(year: "2026", month: "6")
+    follow_redirect!
+    assert_select ".alert-success", text: /Successfully processed 1 pending salaries/
+
+    ms_zero.reload
+    ms_pos.reload
+
+    # Not Payable record must remain untouched
+    assert_equal MonthlySalary::STATUS_NOT_PAYABLE, ms_zero.status
+    # Positive Pending record must be transitioned to Paid
+    assert_equal MonthlySalary::STATUS_PAID, ms_pos.status
+  end
+
+  test "salary processor transitions legacy zero-value Pending records to Not Payable instead of Paid" do
+    p = Period.create!(year: 2026, month: 7)
+    emp_leg = Employee.create!(employee_number: "LEG_ZERO", name: "Legacy Zero", country: @us, department: @engineering, joining_date: Date.new(2025, 1, 1))
+    ms_leg = MonthlySalary.create!(employee: emp_leg, period: p, monthly_salary: 3000, payable_amount: 0, status: MonthlySalary::STATUS_PENDING)
+
+    post process_salaries_monthly_salaries_url, params: { year: 2026, month: 7 }
+    assert_redirected_to monthly_salaries_path(year: "2026", month: "7")
+    follow_redirect!
+
+    ms_leg.reload
+    assert_equal MonthlySalary::STATUS_NOT_PAYABLE, ms_leg.status
+  end
+
+  test "filtering monthly salaries by Not Payable status works" do
+    p = Period.create!(year: 2026, month: 8)
+    emp_np = Employee.create!(employee_number: "FILT_NP1", name: "Not Payable Emp", country: @us, department: @engineering, joining_date: Date.new(2025, 1, 1))
+    emp_pd = Employee.create!(employee_number: "FILT_PD1", name: "Paid Emp",        country: @us, department: @engineering, joining_date: Date.new(2025, 1, 1))
+
+    MonthlySalary.create!(employee: emp_np, period: p, monthly_salary: 3000, payable_amount: 0, status: MonthlySalary::STATUS_NOT_PAYABLE)
+    MonthlySalary.create!(employee: emp_pd, period: p, monthly_salary: 5000, payable_amount: 5000, status: MonthlySalary::STATUS_PAID)
+
+    get monthly_salaries_url, params: { year: 2026, month: 8, status: MonthlySalary::STATUS_NOT_PAYABLE }
+    assert_response :success
+    assert_select "#monthly_salaries_frame tbody tr", count: 1
+    assert_select "#monthly_salaries_frame td.employee-number", "FILT_NP1"
+    assert_select "#monthly_salaries_frame span.badge", "Not Payable"
   end
 end

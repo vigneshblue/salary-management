@@ -125,11 +125,14 @@ The seed implementation uses upsert operations and database uniqueness constrain
 - The payable amount is rounded to two decimal places.
 - If eligible working days or present days are zero, the payable amount is zero.
 - Employees who joined after the selected month receive zero payable salary for that period.
-- Newly generated monthly salary records start with `Pending` status.
+- Newly generated monthly salary records with `payable_amount > 0` start with `Pending` status.
+- Monthly salary records with `payable_amount <= 0` (e.g. post-month joiners or zero present days) are assigned `Not Payable` status.
 
 ### Salary processing
 
-- Processing changes eligible `Pending` records to `Paid` for the selected period.
+- Processing changes eligible `Pending` records with `payable_amount > 0` to `Paid` for the selected period.
+- Records with `Not Payable` status are never marked `Paid`.
+- Legacy zero-value `Pending` records are automatically transitioned to `Not Payable` instead of being paid.
 - The operation is performed in a database transaction with row locking.
 - This is a simulation only; no external payment provider or bank transfer is involved.
 

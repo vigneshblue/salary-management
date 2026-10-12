@@ -1,7 +1,8 @@
 class MonthlySalary < ApplicationRecord
   STATUS_PENDING = "Pending"
   STATUS_PAID = "Paid"
-  STATUSES = [ STATUS_PENDING, STATUS_PAID ].freeze
+  STATUS_NOT_PAYABLE = "Not Payable"
+  STATUSES = [ STATUS_PENDING, STATUS_PAID, STATUS_NOT_PAYABLE ].freeze
 
   belongs_to :employee
   belongs_to :period

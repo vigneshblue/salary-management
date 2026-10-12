@@ -276,7 +276,7 @@ class JoiningDateSalaryTest < ActiveSupport::TestCase
     ms = MonthlySalary.find_by!(employee: emp, period: period)
     assert_equal BigDecimal("0.00"), ms.monthly_salary
     assert_equal BigDecimal("0.00"), ms.payable_amount
-    assert_equal "Pending",          ms.status
+    assert_equal MonthlySalary::STATUS_NOT_PAYABLE, ms.status
     assert ms.valid?
   end
 
@@ -347,12 +347,15 @@ class JoiningDateSalaryTest < ActiveSupport::TestCase
 
     assert_equal BigDecimal("5000.00"), ms_early.monthly_salary
     assert_equal BigDecimal("5000.00"), ms_early.payable_amount
+    assert_equal MonthlySalary::STATUS_PENDING, ms_early.status
 
     assert_equal BigDecimal("4000.00"), ms_mid.monthly_salary
     # 4000 * 10 / 12 = 3333.33
     assert_equal BigDecimal("3333.33"), ms_mid.payable_amount
+    assert_equal MonthlySalary::STATUS_PENDING, ms_mid.status
 
     assert_equal BigDecimal("0.00"), ms_late.monthly_salary
     assert_equal BigDecimal("0.00"), ms_late.payable_amount
+    assert_equal MonthlySalary::STATUS_NOT_PAYABLE, ms_late.status
   end
 end

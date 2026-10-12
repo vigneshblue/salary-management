@@ -88,6 +88,11 @@ class SalaryCalculator
       )
     end
 
+    # Handle existing zero-value Pending records appropriately so they become Not Payable
+    MonthlySalary.where(period_id: period.id, status: MonthlySalary::STATUS_PENDING)
+                 .where("payable_amount <= 0")
+                 .update_all(status: MonthlySalary::STATUS_NOT_PAYABLE, updated_at: Time.current)
+
     # 3. Check existing MonthlySalary records for idempotency.
     existing_employee_ids = MonthlySalary.where(period_id: period.id).pluck(:employee_id).to_set
     preserved_count = existing_employee_ids.size
@@ -130,12 +135,14 @@ class SalaryCalculator
 
           monthly_base, payable = compute_salary_amounts(annual_salary, working_days, present_days)
 
+          status = payable <= BigDecimal("0") ? MonthlySalary::STATUS_NOT_PAYABLE : MonthlySalary::STATUS_PENDING
+
           records_to_insert << {
             employee_id:    employee.id,
             period_id:      period.id,
             monthly_salary: monthly_base,
             payable_amount: payable,
-            status:         MonthlySalary::STATUS_PENDING,
+            status:         status,
             created_at:     now,
             updated_at:     now
           }

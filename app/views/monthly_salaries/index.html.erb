@@ -155,8 +155,10 @@
             <span class="badge badge-success">All Paid</span>
           <% elsif @paid_count.zero? && @pending_count.positive? %>
             <span class="badge badge-warning">All Pending</span>
+          <% elsif @pending_count.zero? && @paid_count.zero? && @not_payable_count.positive? %>
+            <span class="badge badge-muted">All Not Payable</span>
           <% else %>
-            <span class="badge badge-warning">Mixed (<%= @paid_count %> Paid / <%= @pending_count %> Pending)</span>
+            <span class="badge badge-warning">Mixed (<%= @paid_count %> Paid / <%= @pending_count %> Pending / <%= @not_payable_count %> Not Payable)</span>
           <% end %>
         </div>
       </div>
@@ -236,7 +238,8 @@
           options_for_select([
             ["All Payment Statuses", ""],
             ["Pending", MonthlySalary::STATUS_PENDING],
-            ["Paid", MonthlySalary::STATUS_PAID]
+            ["Paid", MonthlySalary::STATUS_PAID],
+            ["Not Payable", MonthlySalary::STATUS_NOT_PAYABLE]
           ], @status),
           {},
           class: "filter-select" %>
@@ -318,6 +321,8 @@
                 <td>
                   <% if ms.status == MonthlySalary::STATUS_PAID %>
                     <span class="badge badge-success"><%= ms.status %></span>
+                  <% elsif ms.status == MonthlySalary::STATUS_NOT_PAYABLE %>
+                    <span class="badge badge-muted"><%= ms.status %></span>
                   <% else %>
                     <span class="badge badge-warning"><%= ms.status %></span>
                   <% end %>

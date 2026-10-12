@@ -40,6 +40,7 @@ class MonthlySalariesController < ApplicationController
       @salaries_count = @current_period.monthly_salaries.count
       @pending_count = @current_period.monthly_salaries.where(status: MonthlySalary::STATUS_PENDING).count
       @paid_count = @current_period.monthly_salaries.where(status: MonthlySalary::STATUS_PAID).count
+      @not_payable_count = @current_period.monthly_salaries.where(status: MonthlySalary::STATUS_NOT_PAYABLE).count
       @attendances_count = @current_period.attendances.count
 
       # Complete relevant period dataset summaries
@@ -138,6 +139,7 @@ class MonthlySalariesController < ApplicationController
       @salaries_count = 0
       @pending_count = 0
       @paid_count = 0
+      @not_payable_count = 0
       @attendances_count = 0
       @currency_totals = {}
       @currency_totals_paid = {}

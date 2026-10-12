@@ -29,9 +29,16 @@ class SalaryProcessor
     end
 
     ActiveRecord::Base.transaction do
-      # 1. Lock pending records for this period (PostgreSQL FOR UPDATE)
-      # Using .lock on the specific records ensures concurrency safety without invalid GROUP BY locking.
-      pending_records = MonthlySalary.where(period_id: period.id, status: MonthlySalary::STATUS_PENDING).lock.to_a
+      # 1. Update any legacy zero-value Pending records to Not Payable so they are never marked Paid
+      MonthlySalary.where(period_id: period.id, status: MonthlySalary::STATUS_PENDING)
+                   .where("payable_amount <= 0")
+                   .update_all(status: MonthlySalary::STATUS_NOT_PAYABLE, updated_at: Time.current)
+
+      # 2. Lock eligible pending records (status: Pending AND payable_amount > 0)
+      pending_records = MonthlySalary.where(period_id: period.id, status: MonthlySalary::STATUS_PENDING)
+                                     .where("payable_amount > 0")
+                                     .lock
+                                     .to_a
 
       # Calculate currency totals from locked pending records
       currency_totals = if pending_records.any?
@@ -45,9 +52,10 @@ class SalaryProcessor
         {}
       end
 
-      # Perform conditional update in bulk
+      # Perform conditional update in bulk strictly for pending records with payable_amount > 0
       now = Time.current
       processed_count = MonthlySalary.where(period_id: period.id, status: MonthlySalary::STATUS_PENDING)
+                                     .where("payable_amount > 0")
                                      .update_all(status: MonthlySalary::STATUS_PAID, updated_at: now)
 
       already_paid_count = MonthlySalary.where(period_id: period.id, status: MonthlySalary::STATUS_PAID).count - processed_count
