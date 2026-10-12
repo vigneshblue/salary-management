@@ -89,7 +89,7 @@ names_by_country = {
 # Country distributions matching mock UI insights:
 # India: 4,000 | US: 2,000 | UK: 1,500 | Canada: 1,500 | Australia: 1,000 => Total 10,000
 country_allocations = [
-  { code: "IN", count: 4000, base_salary: 1_200_000, salary_step: 30_000 },
+  { code: "IN", count: 4000, base_salary: 3_000_000, salary_step: 75_000 },
   { code: "US", count: 2000, base_salary: 120_000, salary_step: 2_500 },
   { code: "GB", count: 1500, base_salary: 95_000, salary_step: 2_000 },
   { code: "CA", count: 1500, base_salary: 110_000, salary_step: 2_200 },
@@ -115,12 +115,14 @@ country_allocations.each do |alloc|
 
     # Department distribution — weighted, deterministic
     dept = pick_department(current_emp_idx, departments_by_name)
-
+    # Deterministic joining dates spread across the last 5 years
+    joining_date = Date.new(2021, 1, 1) + ((current_emp_idx * 137) % (Date.current - Date.new(2021, 1, 1)).to_i)
     employee_records << {
       employee_number: emp_num,
       name: full_name,
       country_id: country.id,
       department_id: dept.id,
+      joining_date: joining_date,
       created_at: now,
       updated_at: now
     }

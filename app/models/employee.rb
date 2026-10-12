@@ -8,6 +8,10 @@ class Employee < ApplicationRecord
 
   validates :employee_number, presence: true, uniqueness: true
   validates :name, presence: true
+  # joining_date is required. It governs attendance eligibility and payable salary:
+  # - Attendance eligible working days start from the later of month-start and joining_date.
+  # - Employees who join after a payroll month ends receive no attendance or salary for that month.
+  validates :joining_date, presence: true
 
   def current_salary(as_of = Date.current)
     if salaries.loaded?
@@ -22,3 +26,4 @@ class Employee < ApplicationRecord
     current_salary(as_of)&.annual_salary
   end
 end
+
