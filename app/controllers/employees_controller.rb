@@ -62,6 +62,7 @@ class EmployeesController < ApplicationController
     @employee = Employee.new
     @countries = Country.order(:name)
     @departments = Department.order(:name)
+    @joining_date = Date.current
     @salary_effective_from = Date.current
   end
 

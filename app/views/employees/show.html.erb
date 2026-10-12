@@ -2,7 +2,7 @@
 
 <div class="page-header">
   <div>
-    <h1 class="page-title"><%= @employee.name %></h1>
+    <h1 class="page-title"><%= @employee.name %> <span class="page-subtitle"><%= @employee.employee_number %></span></h1>
     <p class="page-subtitle">Employee Details</p>
   </div>
   <div style="display: flex; gap: 8px;">
@@ -36,8 +36,8 @@
   <div class="card-body p-6">
     <div class="grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;">
       <div>
-        <div class="text-sm text-muted mb-1">Employee ID</div>
-        <div class="font-medium employee-number"><%= @employee.employee_number %></div>
+        <div class="text-sm text-muted mb-1">Joining Date</div>
+        <div class="font-medium joining-date"><%= @employee.joining_date %></div>
       </div>
       <div>
         <div class="text-sm text-muted mb-1">Current Salary</div>

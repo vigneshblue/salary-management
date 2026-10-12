@@ -364,8 +364,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
 
     get employee_url(employee)
     assert_response :success
-    assert_select "h1.page-title", "Detail Tester"
-    assert_select ".employee-number", "EMP999"
+    assert_select "h1.page-title", "Detail Tester EMP999"
+    assert_select ".joining-date", "2026-01-01"
     assert_select ".employee-country", "United States"
     assert_select ".employee-department", "Engineering"
   end
@@ -894,8 +894,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
     get employee_url(emp)
     assert_response :success
 
-    assert_select "h1.page-title", "Legacy Checker"
-    assert_select ".employee-number", "EMP606"
+    assert_select "h1.page-title", "Legacy Checker EMP606"
+    assert_select ".joining-date", "2026-01-01"
     assert_select ".employee-current-salary", text: /\$80,000/
     assert_select ".employee-country", "United States"
     assert_select ".employee-department", "Engineering"
