@@ -1,0 +1,36 @@
+<div class="pagination-container">
+  <div class="pagination-info">
+    <% if @total_count.positive? && @from_index.positive? %>
+      Showing <strong><%= number_with_delimiter(@from_index) %></strong> to <strong><%= number_with_delimiter(@to_index) %></strong> of <strong><%= number_with_delimiter(@total_count) %></strong> <%= local_assigns[:item_name] || "records" %>
+    <% else %>
+      Showing 0 of <%= number_with_delimiter(@total_count) %> <%= local_assigns[:item_name] || "records" %>
+    <% end %>
+  </div>
+
+  <% if @total_pages > 1 %>
+    <% path_helper = local_assigns[:path_helper] || :employees_path %>
+    <nav class="pagination-controls" aria-label="Pagination">
+      <% if @page > 1 %>
+        <%= link_to "‹", send(path_helper, @filter_params.merge(page: @page - 1, per_page: @per_page)), class: "pagination-btn pagination-prev", aria: { label: "Previous page" } %>
+      <% else %>
+        <span class="pagination-btn pagination-disabled" aria-hidden="true">‹</span>
+      <% end %>
+
+      <% pagination_page_numbers(@page, @total_pages).each do |p| %>
+        <% if p == :gap %>
+          <span class="pagination-gap">…</span>
+        <% elsif p == @page %>
+          <span class="pagination-btn pagination-active" aria-current="page"><%= number_with_delimiter(p) %></span>
+        <% else %>
+          <%= link_to number_with_delimiter(p), send(path_helper, @filter_params.merge(page: p, per_page: @per_page)), class: "pagination-btn" %>
+        <% end %>
+      <% end %>
+
+      <% if @page < @total_pages %>
+        <%= link_to "›", send(path_helper, @filter_params.merge(page: @page + 1, per_page: @per_page)), class: "pagination-btn pagination-next", aria: { label: "Next page" } %>
+      <% else %>
+        <span class="pagination-btn pagination-disabled" aria-hidden="true">›</span>
+      <% end %>
+    </nav>
+  <% end %>
+</div>

@@ -1,9 +1,32 @@
 <% content_for :title, "Monthly Salary Processing — ACME HR" %>
 
-<div class="page-header">
+<div class="page-header" style="align-items: center; flex-wrap: wrap; gap: 16px;">
   <div>
     <h1 class="page-title">Monthly Salaries</h1>
-    <p class="page-subtitle">Calculate and process monthly salaries based on attendance</p>
+    <p class="page-subtitle">Calculate, inspect, and process monthly salaries based on employee attendance</p>
+  </div>
+
+  <div>
+    <%= form_with url: monthly_salaries_path, method: :get, local: true, class: "currency-selector-form" do |f| %>
+      <%= f.hidden_field :year, value: @year %>
+      <%= f.hidden_field :month, value: @month %>
+      <%= f.hidden_field :q, value: @query if @query.present? %>
+      <%= f.hidden_field :country_id, value: @country_id if @country_id.present? %>
+      <%= f.hidden_field :department_id, value: @department_id if @department_id.present? %>
+      <%= f.hidden_field :status, value: @status if @status.present? %>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <%= f.label :currency, "Reporting Currency:", class: "form-label m-0 font-medium", style: "white-space: nowrap;" %>
+        <%= f.select :currency,
+              options_for_select(@supported_currencies, @currency),
+              {},
+              class: "filter-select",
+              style: "min-width: 100px; padding-top: 6px; padding-bottom: 6px;",
+              onchange: "this.form.submit();" %>
+        <noscript>
+          <%= f.submit "Apply", class: "btn btn-primary btn-sm" %>
+        </noscript>
+      </div>
+    <% end %>
   </div>
 </div>
 
@@ -139,17 +162,29 @@
       </div>
     </div>
 
-    <% if @currency_totals.any? %>
+    <% if @salaries_count.positive? %>
+      <% curr_symbol = EmployeesHelper::CURRENCY_SYMBOLS[@currency] || "#{@currency} " %>
       <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-color);">
-        <h4 class="font-semibold text-sm text-muted mb-2" style="text-transform: uppercase; letter-spacing: 0.05em;">Total Payable by Currency</h4>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+          <h4 class="font-semibold text-sm text-muted m-0" style="text-transform: uppercase; letter-spacing: 0.05em;">
+            Total Payable Summary (Reporting in <%= @currency %>)
+          </h4>
+          <span class="text-sm text-muted">
+            Total Converted: <strong style="color: var(--text-main);"><%= curr_symbol %><%= number_with_precision(@total_payable_converted, precision: 2, delimiter: ",") %></strong>
+            (<span style="color: #10b981;">Paid: <%= curr_symbol %><%= number_with_precision(@total_paid_converted, precision: 2, delimiter: ",") %></span> &bull;
+            <span style="color: #f59e0b;">Pending: <%= curr_symbol %><%= number_with_precision(@total_pending_converted, precision: 2, delimiter: ",") %></span>)
+          </span>
+        </div>
+
+        <h4 class="font-semibold text-xs text-muted mb-2" style="text-transform: uppercase; letter-spacing: 0.05em;">Breakdown by Original Currency</h4>
         <div style="display: flex; gap: 16px; flex-wrap: wrap;">
           <% @currency_totals.each do |currency, total| %>
             <% paid_val = @currency_totals_paid[currency] || 0 %>
             <% pending_val = @currency_totals_pending[currency] || 0 %>
             <% symbol = EmployeesHelper::CURRENCY_SYMBOLS[currency] || "#{currency} " %>
-            <div class="stat-card" style="min-width: 220px;">
+            <div class="stat-card" style="min-width: 200px;">
               <div class="text-sm text-muted mb-1"><%= currency %> Total</div>
-              <div class="stat-value font-medium" style="font-size: 18px;">
+              <div class="stat-value font-medium" style="font-size: 17px;">
                 <%= symbol %><%= number_with_precision(total, precision: 2, delimiter: ",") %>
               </div>
               <div class="text-sm text-muted" style="margin-top: 6px; font-size: 12px;">
@@ -166,45 +201,135 @@
   </div>
 </div>
 
-<% if @sample_salaries.any? %>
-  <div class="card table-card mb-6">
-    <div class="card-header border-b p-4 bg-gray-50">
-      <h3 class="font-semibold text-lg m-0">Sample Monthly Salary Preview (<%= Date::MONTHNAMES[@month] %> <%= @year %>)</h3>
+<%# Filter & Search Controls %>
+<%= form_with url: monthly_salaries_path, method: :get, data: { turbo_frame: "monthly_salaries_frame" }, class: "search-bar mb-6" do |f| %>
+  <%= f.hidden_field :year, value: @year %>
+  <%= f.hidden_field :month, value: @month %>
+  <%= f.hidden_field :currency, value: @currency if @currency != CurrencyConverter::DEFAULT_CURRENCY %>
+  <%# Reset page to 1 when filtering %>
+  <%= hidden_field_tag :page, 1 %>
+
+  <div class="search-bar-inner">
+    <div class="search-input-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <%= f.text_field :q,
+            value: @query,
+            placeholder: "Search employee name or number…",
+            class: "search-input",
+            autocomplete: "off" %>
     </div>
+
+    <%= f.select :country_id,
+          options_from_collection_for_select(@countries, :id, :name, @country_id&.to_i),
+          { include_blank: "All Countries" },
+          class: "filter-select" %>
+
+    <%= f.select :department_id,
+          options_from_collection_for_select(@departments, :id, :name, @department_id&.to_i),
+          { include_blank: "All Departments" },
+          class: "filter-select" %>
+
+    <%= f.select :status,
+          options_for_select([
+            ["All Payment Statuses", ""],
+            ["Pending", MonthlySalary::STATUS_PENDING],
+            ["Paid", MonthlySalary::STATUS_PAID]
+          ], @status),
+          {},
+          class: "filter-select" %>
+
+    <%= f.submit "Filter", class: "btn btn-primary" %>
+
+    <% if @query.present? || @country_id.present? || @department_id.present? || @status.present? %>
+      <%= link_to "Clear Filters", monthly_salaries_path(year: @year, month: @month, currency: (@currency if @currency != CurrencyConverter::DEFAULT_CURRENCY)), class: "btn btn-ghost" %>
+    <% end %>
+  </div>
+<% end %>
+
+<%# Full Paginated Monthly Salary Table %>
+<%= turbo_frame_tag "monthly_salaries_frame", data: { turbo_action: "advance" } do %>
+  <div class="card table-card mb-6">
+    <div class="card-header border-b p-4 bg-gray-50" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+      <h3 class="font-semibold text-lg m-0">
+        Monthly Salary Records (<%= Date::MONTHNAMES[@month] %> <%= @year %>)
+      </h3>
+      <% if @current_period && @salaries_count.positive? %>
+        <span class="text-sm text-muted">
+          Showing <%= number_with_delimiter(@from_index) %>–<%= number_with_delimiter(@to_index) %> of <%= number_with_delimiter(@total_count) %> filtered records (<%= number_with_delimiter(@salaries_count) %> total)
+        </span>
+      <% end %>
+    </div>
+
     <div class="table-responsive">
       <table class="data-table">
         <thead>
           <tr>
-            <th>Employee ID</th>
+            <th class="col-index">Emp No</th>
             <th>Name</th>
             <th>Country</th>
             <th>Department</th>
             <th class="col-salary">Monthly Base</th>
-            <th class="col-salary">Payable Amount</th>
-            <th>Status</th>
+            <th style="text-align: right;">Working Days</th>
+            <th style="text-align: right;">Present Days</th>
+            <th style="text-align: right;">Absent Days</th>
+            <th class="col-salary">Payable Salary</th>
+            <th>Payment Status</th>
           </tr>
         </thead>
         <tbody>
-          <% @sample_salaries.each do |ms| %>
-            <tr id="<%= dom_id(ms) %>">
-              <td class="font-medium employee-number"><%= ms.employee.employee_number %></td>
-              <td><%= link_to ms.employee.name, employee_path(ms.employee), class: "font-medium text-primary hover:underline" %></td>
-              <td><%= ms.employee.country.name %></td>
-              <td><%= ms.employee.department.name %></td>
-              <td class="col-salary"><%= format_salary(ms.monthly_salary, ms.employee.country) %></td>
-              <td class="col-salary font-medium"><%= format_salary(ms.payable_amount, ms.employee.country) %></td>
-              <td>
-                <% if ms.status == MonthlySalary::STATUS_PAID %>
-                  <span class="badge badge-success"><%= ms.status %></span>
-                <% else %>
-                  <span class="badge badge-warning"><%= ms.status %></span>
-                <% end %>
+          <% if @current_period.nil? || @salaries_count.zero? %>
+            <tr>
+              <td colspan="13" class="text-center empty-state">
+                No monthly salaries have been calculated for <%= Date::MONTHNAMES[@month] %> <%= @year %>. Click "Calculate Salaries" above to compute compensation.
               </td>
             </tr>
+          <% elsif @monthly_salaries.empty? %>
+            <tr>
+              <td colspan="13" class="text-center empty-state">
+                No monthly salary records match your search or filter criteria.
+              </td>
+            </tr>
+          <% else %>
+            <% @monthly_salaries.each_with_index do |ms, idx| %>
+              <%
+                employee = ms.employee
+                country = employee.country
+                annual_sal = employee.current_salary(@as_of_date)&.annual_salary
+                att = @attendances_by_emp_id[employee.id]
+                working_d = att&.working_days || 0
+                present_d = att&.present_days || 0
+                absent_d = working_d.positive? ? [working_d - present_d, 0].max : 0
+              %>
+              <tr id="<%= dom_id(ms) %>">
+                <td class="font-medium employee-number"><%= employee.employee_number %></td>
+                <td class="employee-name">
+                  <%= link_to employee.name, employee_path(employee), class: "font-medium text-primary hover:underline", data: { turbo_frame: "_top" } %>
+                </td>
+                <td class="employee-country"><%= country.name %></td>
+                <td class="employee-department"><%= employee.department.name %></td>
+                <td class="col-salary"><%= format_salary(ms.monthly_salary, country) %></td>
+                <td style="text-align: right;"><%= working_d %></td>
+                <td style="text-align: right;"><%= present_d %></td>
+                <td style="text-align: right;"><%= absent_d %></td>
+                <td class="col-salary font-medium"><%= format_salary(ms.payable_amount, country) %></td>
+                <td>
+                  <% if ms.status == MonthlySalary::STATUS_PAID %>
+                    <span class="badge badge-success"><%= ms.status %></span>
+                  <% else %>
+                    <span class="badge badge-warning"><%= ms.status %></span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
           <% end %>
         </tbody>
       </table>
     </div>
+
+    <%= render "shared/pagination", path_helper: :monthly_salaries_path, item_name: "records" %>
   </div>
 <% end %>
 

@@ -102,46 +102,154 @@
           <% end %>
         </div>
       </div>
+
+      <% if @attendances_count.positive? %>
+        <div class="stat-card">
+          <div class="text-sm text-muted mb-1">Overall Attendance Rate</div>
+          <div class="stat-value font-medium" style="color: #10b981;">
+            <%= @overall_attendance_rate %>%
+            <span class="text-sm font-normal text-muted">(Avg)</span>
+          </div>
+          <div class="text-sm text-muted" style="margin-top: 4px; font-size: 12px;">
+            Present: <%= number_with_delimiter(@total_present_days_sum) %> / Working: <%= number_with_delimiter(@total_working_days_sum) %>
+          </div>
+        </div>
+      <% end %>
     </div>
   </div>
 </div>
 
-<% if @sample_attendances.any? %>
-  <div class="card table-card mb-6">
-    <div class="card-header border-b p-4 bg-gray-50">
-      <h3 class="font-semibold text-lg m-0">Sample Attendance Preview (<%= Date::MONTHNAMES[@month] %> <%= @year %>)</h3>
+<%# Filter & Search Controls %>
+<%= form_with url: attendances_path, method: :get, data: { turbo_frame: "attendances_frame" }, class: "search-bar mb-6" do |f| %>
+  <%= f.hidden_field :year, value: @year %>
+  <%= f.hidden_field :month, value: @month %>
+  <%# Reset page to 1 when filtering %>
+  <%= hidden_field_tag :page, 1 %>
+
+  <div class="search-bar-inner">
+    <div class="search-input-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <%= f.text_field :q,
+            value: @query,
+            placeholder: "Search employee name or number…",
+            class: "search-input",
+            autocomplete: "off" %>
     </div>
+
+    <%= f.select :country_id,
+          options_from_collection_for_select(@countries, :id, :name, @country_id&.to_i),
+          { include_blank: "All Countries" },
+          class: "filter-select" %>
+
+    <%= f.select :department_id,
+          options_from_collection_for_select(@departments, :id, :name, @department_id&.to_i),
+          { include_blank: "All Departments" },
+          class: "filter-select" %>
+
+    <%= f.select :status,
+          options_for_select([
+            ["All Attendance Statuses", ""],
+            ["100% Present", "perfect"],
+            ["Partial Attendance", "partial"],
+            ["0 Present Days", "absent"],
+            ["Not Eligible (0 Working Days)", "ineligible"]
+          ], @status),
+          {},
+          class: "filter-select" %>
+
+    <%= f.submit "Filter", class: "btn btn-primary" %>
+
+    <% if @query.present? || @country_id.present? || @department_id.present? || @status.present? %>
+      <%= link_to "Clear Filters", attendances_path(year: @year, month: @month), class: "btn btn-ghost" %>
+    <% end %>
+  </div>
+<% end %>
+
+<%# Full Paginated Attendance Table %>
+<%= turbo_frame_tag "attendances_frame", data: { turbo_action: "advance" } do %>
+  <div class="card table-card mb-6">
+    <div class="card-header border-b p-4 bg-gray-50" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+      <h3 class="font-semibold text-lg m-0">
+        Monthly Attendance Records (<%= Date::MONTHNAMES[@month] %> <%= @year %>)
+      </h3>
+      <% if @current_period && @attendances_count.positive? %>
+        <span class="text-sm text-muted">
+          Showing <%= number_with_delimiter(@from_index) %>–<%= number_with_delimiter(@to_index) %> of <%= number_with_delimiter(@total_count) %> filtered records (<%= number_with_delimiter(@attendances_count) %> total)
+        </span>
+      <% end %>
+    </div>
+
     <div class="table-responsive">
       <table class="data-table">
         <thead>
           <tr>
+            <th class="col-index">#</th>
             <th>Employee ID</th>
             <th>Name</th>
             <th>Country</th>
             <th>Department</th>
-            <th>Working Days</th>
-            <th>Present Days</th>
-            <th>Attendance Rate</th>
+            <th>Joining Date</th>
+            <th style="text-align: right;">Working Days</th>
+            <th style="text-align: right;">Present Days</th>
+            <th style="text-align: right;">Absent Days</th>
+            <th>Attendance Status</th>
           </tr>
         </thead>
         <tbody>
-          <% @sample_attendances.each do |att| %>
-            <tr id="<%= dom_id(att) %>">
-              <td class="font-medium employee-number"><%= att.employee.employee_number %></td>
-              <td><%= link_to att.employee.name, employee_path(att.employee), class: "font-medium text-primary hover:underline" %></td>
-              <td><%= att.employee.country.name %></td>
-              <td><%= att.employee.department.name %></td>
-              <td><%= att.working_days %></td>
-              <td class="font-medium"><%= att.present_days %></td>
-              <td>
-                <% rate = att.working_days.positive? ? ((att.present_days.to_f / att.working_days) * 100).round(1) : 0 %>
-                <span class="text-muted"><%= rate %>%</span>
+          <% if @current_period.nil? || @attendances_count.zero? %>
+            <tr>
+              <td colspan="10" class="text-center empty-state">
+                No attendance records have been generated for <%= Date::MONTHNAMES[@month] %> <%= @year %>. Click "Generate Attendance" above to create them.
               </td>
             </tr>
+          <% elsif @attendances.empty? %>
+            <tr>
+              <td colspan="10" class="text-center empty-state">
+                No attendance records match your search or filter criteria.
+              </td>
+            </tr>
+          <% else %>
+            <% @attendances.each_with_index do |att, idx| %>
+              <%
+                # Absent days logic:
+                # If working_days is 0 (e.g. joined after month end), absent days = 0.
+                # Otherwise, max(working_days - present_days, 0).
+                absent_days = att.working_days.positive? ? [att.working_days - att.present_days, 0].max : 0
+              %>
+              <tr id="<%= dom_id(att) %>">
+                <td class="col-index text-muted"><%= (@page - 1) * @per_page + idx + 1 %></td>
+                <td class="font-medium employee-number"><%= att.employee.employee_number %></td>
+                <td class="employee-name">
+                  <%= link_to att.employee.name, employee_path(att.employee), class: "font-medium text-primary hover:underline", data: { turbo_frame: "_top" } %>
+                </td>
+                <td class="employee-country"><%= att.employee.country.name %></td>
+                <td class="employee-department"><%= att.employee.department.name %></td>
+                <td><%= att.employee.joining_date&.strftime("%b %d, %Y") %></td>
+                <td style="text-align: right;" class="font-medium attendance-working-days"><%= att.working_days %></td>
+                <td style="text-align: right;" class="font-medium attendance-present-days"><%= att.present_days %></td>
+                <td style="text-align: right;" class="attendance-absent-days"><%= absent_days %></td>
+                <td>
+                  <% if att.working_days.zero? %>
+                    <span class="badge badge-muted">Joined Post-Period</span>
+                  <% elsif att.present_days == att.working_days %>
+                    <span class="badge badge-success">100% Present</span>
+                  <% elsif att.present_days.positive? %>
+                    <span class="badge badge-warning"><%= ((att.present_days.to_f / att.working_days) * 100).round %>% Rate</span>
+                  <% else %>
+                    <span class="badge badge-danger" style="background-color: #fee2e2; color: #991b1b;">0 Present</span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
           <% end %>
         </tbody>
       </table>
     </div>
+
+    <%= render "shared/pagination", path_helper: :attendances_path, item_name: "records" %>
   </div>
 <% end %>
 

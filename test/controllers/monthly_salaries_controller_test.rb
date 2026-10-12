@@ -430,4 +430,122 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
     assert_select ".alert-danger", text: /Month must be between 1 and 12/
     assert_select "h2", text: /Period Summary: #{Date::MONTHNAMES[current.month]} #{current.year}/
   end
+
+  # ==================================
+  # Pagination and Filtering Tests
+  # ==================================
+
+  test "paginates monthly salary records with 25 records per page" do
+    p = Period.create!(year: 2026, month: 1)
+    30.times do |i|
+      emp = Employee.create!(
+        employee_number: format("SALPAG%04d", i + 1),
+        name: "Worker #{i + 1}",
+        country: @us,
+        department: @engineering,
+        joining_date: Date.new(2025, 1, 1)
+      )
+      emp.salaries.create!(annual_salary: 60_000, effective_from: Date.new(2025, 1, 1))
+      Attendance.create!(employee: emp, period: p, working_days: 22, present_days: 22)
+      MonthlySalary.create!(
+        employee: emp,
+        period: p,
+        monthly_salary: 5000,
+        payable_amount: 5000,
+        status: MonthlySalary::STATUS_PENDING
+      )
+    end
+
+    get monthly_salaries_url, params: { year: 2026, month: 1, page: 1 }
+    assert_response :success
+    assert_select "#monthly_salaries_frame tbody tr", count: 25
+    assert_select "#monthly_salaries_frame .pagination-info", text: /Showing 1 to 25 of 30 records/
+    assert_select "#monthly_salaries_frame a.pagination-next"
+
+    get monthly_salaries_url, params: { year: 2026, month: 1, page: 2 }
+    assert_response :success
+    assert_select "#monthly_salaries_frame tbody tr", count: 5
+    assert_select "#monthly_salaries_frame .pagination-info", text: /Showing 26 to 30 of 30 records/
+    assert_select "#monthly_salaries_frame a.pagination-prev"
+  end
+
+  test "filters monthly salaries by employee query, country, department, and status" do
+    sales_dept = Department.create!(name: "Sales")
+
+    p = Period.create!(year: 2026, month: 2)
+    emp_us = Employee.create!(employee_number: "SALFILT01", name: "Grace Hopper", country: @us, department: @engineering, joining_date: Date.new(2025, 1, 1))
+    emp_in = Employee.create!(employee_number: "SALFILT02", name: "Aryabhata", country: @in, department: sales_dept, joining_date: Date.new(2025, 1, 1))
+
+    emp_us.salaries.create!(annual_salary: 120_000, effective_from: Date.new(2025, 1, 1))
+    emp_in.salaries.create!(annual_salary: 1_200_000, effective_from: Date.new(2025, 1, 1))
+
+    Attendance.create!(employee: emp_us, period: p, working_days: 20, present_days: 20)
+    Attendance.create!(employee: emp_in, period: p, working_days: 20, present_days: 20)
+
+    MonthlySalary.create!(employee: emp_us, period: p, monthly_salary: 10_000, payable_amount: 10_000, status: MonthlySalary::STATUS_PAID)
+    MonthlySalary.create!(employee: emp_in, period: p, monthly_salary: 100_000, payable_amount: 100_000, status: MonthlySalary::STATUS_PENDING)
+
+    # Filter by name query
+    get monthly_salaries_url, params: { year: 2026, month: 2, q: "Hopper" }
+    assert_response :success
+    assert_select "#monthly_salaries_frame tbody tr", count: 1
+    assert_select "#monthly_salaries_frame td.employee-number", "SALFILT01"
+
+    # Filter by status Paid
+    get monthly_salaries_url, params: { year: 2026, month: 2, status: MonthlySalary::STATUS_PAID }
+    assert_response :success
+    assert_select "#monthly_salaries_frame tbody tr", count: 1
+    assert_select "#monthly_salaries_frame td.employee-number", "SALFILT01"
+
+    # Filter by status Pending
+    get monthly_salaries_url, params: { year: 2026, month: 2, status: MonthlySalary::STATUS_PENDING }
+    assert_response :success
+    assert_select "#monthly_salaries_frame tbody tr", count: 1
+    assert_select "#monthly_salaries_frame td.employee-number", "SALFILT02"
+  end
+
+  test "displays individual amounts in native currency without incorrect aggregation" do
+    p = Period.create!(year: 2026, month: 3)
+
+    emp_us = Employee.create!(employee_number: "CURR01", name: "US Person", country: @us, department: @engineering, joining_date: Date.new(2025, 1, 1))
+    emp_in = Employee.create!(employee_number: "CURR02", name: "IN Person", country: @in, department: @engineering, joining_date: Date.new(2025, 1, 1))
+
+    emp_us.salaries.create!(annual_salary: 60_000, effective_from: Date.new(2025, 1, 1))
+    emp_in.salaries.create!(annual_salary: 600_000, effective_from: Date.new(2025, 1, 1))
+
+    Attendance.create!(employee: emp_us, period: p, working_days: 22, present_days: 22)
+    Attendance.create!(employee: emp_in, period: p, working_days: 22, present_days: 22)
+
+    MonthlySalary.create!(employee: emp_us, period: p, monthly_salary: 5000, payable_amount: 5000, status: MonthlySalary::STATUS_PENDING)
+    MonthlySalary.create!(employee: emp_in, period: p, monthly_salary: 50_000, payable_amount: 50_000, status: MonthlySalary::STATUS_PENDING)
+
+    get monthly_salaries_url, params: { year: 2026, month: 3 }
+    assert_response :success
+
+    # Row for US shows USD symbol
+    assert_select "#monthly_salaries_frame tr##{dom_id(emp_us.monthly_salaries.first)}" do
+      assert_select "td", text: /\$5,000/
+    end
+
+    # Row for IN shows INR symbol
+    assert_select "#monthly_salaries_frame tr##{dom_id(emp_in.monthly_salaries.first)}" do
+      assert_select "td", text: /₹50,000/
+    end
+  end
+
+  test "distinguishes between salaries not calculated and no filter matches" do
+    # 1. Salaries not calculated
+    get monthly_salaries_url, params: { year: 2028, month: 1 }
+    assert_response :success
+    assert_select "#monthly_salaries_frame td.empty-state", text: /No monthly salaries have been calculated/
+
+    # 2. Period exists with salaries, but filter matches none
+    p = Period.create!(year: 2026, month: 4)
+    emp = Employee.create!(employee_number: "EX002", name: "Exists", country: @us, department: @engineering, joining_date: Date.new(2025, 1, 1))
+    MonthlySalary.create!(employee: emp, period: p, monthly_salary: 5000, payable_amount: 5000, status: MonthlySalary::STATUS_PAID)
+
+    get monthly_salaries_url, params: { year: 2026, month: 4, q: "NonexistentName" }
+    assert_response :success
+    assert_select "#monthly_salaries_frame td.empty-state", text: /No monthly salary records match your search or filter/
+  end
 end

@@ -251,4 +251,111 @@ class AttendancesControllerTest < ActionDispatch::IntegrationTest
     assert_select ".alert-danger", text: /Month must be between 1 and 12/
     assert_select "h2", text: /Selected Period Status: #{Date::MONTHNAMES[current.month]} #{current.year}/
   end
+
+  # ==================================
+  # Pagination and Filtering Tests
+  # ==================================
+
+  test "paginates attendance records with 25 records per page" do
+    p = Period.create!(year: 2026, month: 1)
+    30.times do |i|
+      emp = Employee.create!(
+        employee_number: format("ATTPAG%04d", i + 1),
+        name: "Worker #{i + 1}",
+        country: @us,
+        department: @engineering,
+        joining_date: Date.new(2025, 1, 1)
+      )
+      Attendance.create!(employee: emp, period: p, working_days: 22, present_days: 20)
+    end
+
+    get attendances_url, params: { year: 2026, month: 1, page: 1 }
+    assert_response :success
+    # 25 records in the page table (plus 1 period in recorded periods table)
+    assert_select "#attendances_frame tbody tr", count: 25
+    assert_select "#attendances_frame .pagination-info", text: /Showing 1 to 25 of 30 records/
+    assert_select "#attendances_frame a.pagination-next"
+
+    get attendances_url, params: { year: 2026, month: 1, page: 2 }
+    assert_response :success
+    assert_select "#attendances_frame tbody tr", count: 5
+    assert_select "#attendances_frame .pagination-info", text: /Showing 26 to 30 of 30 records/
+    assert_select "#attendances_frame a.pagination-prev"
+  end
+
+  test "filters attendance records by employee name and employee number" do
+    p = Period.create!(year: 2026, month: 2)
+    emp1 = Employee.create!(employee_number: "SRCH001", name: "Ada Lovelace", country: @us, department: @engineering, joining_date: Date.new(2025, 1, 1))
+    emp2 = Employee.create!(employee_number: "SRCH002", name: "Alan Turing", country: @us, department: @engineering, joining_date: Date.new(2025, 1, 1))
+    Attendance.create!(employee: emp1, period: p, working_days: 20, present_days: 20)
+    Attendance.create!(employee: emp2, period: p, working_days: 20, present_days: 18)
+
+    get attendances_url, params: { year: 2026, month: 2, q: "Lovelace" }
+    assert_response :success
+    assert_select "#attendances_frame tbody tr", count: 1
+    assert_select "#attendances_frame td.employee-number", "SRCH001"
+
+    get attendances_url, params: { year: 2026, month: 2, q: "SRCH002" }
+    assert_response :success
+    assert_select "#attendances_frame tbody tr", count: 1
+    assert_select "#attendances_frame td.employee-number", "SRCH002"
+  end
+
+  test "filters attendance records by country, department, and status" do
+    in_country = Country.create!(name: "India", code: "IN", currency: "INR")
+    sales_dept = Department.create!(name: "Sales")
+
+    p = Period.create!(year: 2026, month: 3)
+    emp_us = Employee.create!(employee_number: "FILT001", name: "US Perfect", country: @us, department: @engineering, joining_date: Date.new(2025, 1, 1))
+    emp_in = Employee.create!(employee_number: "FILT002", name: "IN Partial", country: in_country, department: sales_dept, joining_date: Date.new(2025, 1, 1))
+    Attendance.create!(employee: emp_us, period: p, working_days: 22, present_days: 22)
+    Attendance.create!(employee: emp_in, period: p, working_days: 22, present_days: 18)
+
+    get attendances_url, params: { year: 2026, month: 3, country_id: @us.id }
+    assert_response :success
+    assert_select "#attendances_frame tbody tr", count: 1
+    assert_select "#attendances_frame td.employee-number", "FILT001"
+
+    get attendances_url, params: { year: 2026, month: 3, status: "partial" }
+    assert_response :success
+    assert_select "#attendances_frame tbody tr", count: 1
+    assert_select "#attendances_frame td.employee-number", "FILT002"
+  end
+
+  test "displays zero absent days for post-month joiner with 0 working days" do
+    p = Period.create!(year: 2026, month: 4)
+    emp = Employee.create!(
+      employee_number: "LATE001",
+      name: "Late Hire",
+      country: @us,
+      department: @engineering,
+      joining_date: Date.new(2026, 5, 1)
+    )
+    Attendance.create!(employee: emp, period: p, working_days: 0, present_days: 0)
+
+    get attendances_url, params: { year: 2026, month: 4 }
+    assert_response :success
+    assert_select "#attendances_frame tr##{dom_id(emp.attendances.first)}" do
+      assert_select "td.attendance-working-days", "0"
+      assert_select "td.attendance-present-days", "0"
+      assert_select "td.attendance-absent-days", "0"
+      assert_select "span.badge", text: /Joined Post-Period/
+    end
+  end
+
+  test "distinguishes between period not generated and no filter matches" do
+    # 1. Period not generated
+    get attendances_url, params: { year: 2028, month: 1 }
+    assert_response :success
+    assert_select "#attendances_frame td.empty-state", text: /No attendance records have been generated/
+
+    # 2. Period exists, but filter has no matches
+    p = Period.create!(year: 2026, month: 5)
+    emp = Employee.create!(employee_number: "EX001", name: "Exists", country: @us, department: @engineering, joining_date: Date.new(2025, 1, 1))
+    Attendance.create!(employee: emp, period: p, working_days: 20, present_days: 20)
+
+    get attendances_url, params: { year: 2026, month: 5, q: "NonexistentName" }
+    assert_response :success
+    assert_select "#attendances_frame td.empty-state", text: /No attendance records match your search or filter/
+  end
 end
