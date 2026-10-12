@@ -4,7 +4,7 @@ class AttendanceTest < ActiveSupport::TestCase
   setup do
     country = Country.create!(name: "India", code: "IN", currency: "INR")
     department = Department.create!(name: "Engineering")
-    @employee = Employee.create!(employee_number: "EMP400", name: "Rahul", country: country, department: department)
+    @employee = Employee.create!(employee_number: "EMP400", name: "Rahul", country: country, department: department, joining_date: Date.new(2026, 1, 1))
     @period = Period.create!(year: 2026, month: 4)
   end
 

@@ -4,7 +4,7 @@ class SalaryTest < ActiveSupport::TestCase
   setup do
     country = Country.create!(name: "United Kingdom", code: "GB", currency: "GBP")
     department = Department.create!(name: "Product")
-    @employee = Employee.create!(employee_number: "EMP300", name: "Jane Doe", country: country, department: department)
+    @employee = Employee.create!(employee_number: "EMP300", name: "Jane Doe", country: country, department: department, joining_date: Date.new(2026, 1, 1))
   end
 
   test "valid salary" do
@@ -51,7 +51,7 @@ class SalaryTest < ActiveSupport::TestCase
   test "allows same effective_from for different employees" do
     country = Country.create!(name: "France", code: "FR", currency: "EUR")
     department = Department.create!(name: "Design")
-    other_employee = Employee.create!(employee_number: "EMP301", name: "Pierre", country: country, department: department)
+    other_employee = Employee.create!(employee_number: "EMP301", name: "Pierre", country: country, department: department, joining_date: Date.new(2026, 1, 1))
 
     effective_date = Date.new(2026, 1, 1)
     Salary.create!(employee: @employee, annual_salary: 60_000, effective_from: effective_date)

@@ -4,7 +4,7 @@ class MonthlySalaryTest < ActiveSupport::TestCase
   setup do
     country = Country.create!(name: "United States", code: "US", currency: "USD")
     department = Department.create!(name: "Marketing")
-    @employee = Employee.create!(employee_number: "EMP500", name: "Sarah Connor", country: country, department: department)
+    @employee = Employee.create!(employee_number: "EMP500", name: "Sarah Connor", country: country, department: department, joining_date: Date.new(2026, 1, 1))
     @period = Period.create!(year: 2026, month: 5)
   end
 

@@ -134,7 +134,7 @@ class EmployeesController < ApplicationController
   private
 
   def employee_params
-    params.require(:employee).permit(:employee_number, :name, :country_id, :department_id)
+    params.require(:employee).permit(:employee_number, :name, :country_id, :department_id, :joining_date)
   end
 
   def filtered_scope

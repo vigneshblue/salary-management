@@ -11,44 +11,51 @@ class EmployeeTest < ActiveSupport::TestCase
       employee_number: "EMP100",
       name: "Max Mustermann",
       country: @country,
-      department: @department
+      department: @department,
+      joining_date: Date.new(2026, 1, 1)
     )
     assert employee.valid?
   end
 
   test "invalid without employee_number" do
-    employee = Employee.new(name: "Max", country: @country, department: @department)
+    employee = Employee.new(name: "Max", country: @country, department: @department, joining_date: Date.new(2026, 1, 1))
     assert_not employee.valid?
     assert_includes employee.errors[:employee_number], "can't be blank"
   end
 
   test "invalid without name" do
-    employee = Employee.new(employee_number: "EMP101", country: @country, department: @department)
+    employee = Employee.new(employee_number: "EMP101", country: @country, department: @department, joining_date: Date.new(2026, 1, 1))
     assert_not employee.valid?
     assert_includes employee.errors[:name], "can't be blank"
   end
 
   test "invalid without country" do
-    employee = Employee.new(employee_number: "EMP102", name: "Max", department: @department)
+    employee = Employee.new(employee_number: "EMP102", name: "Max", department: @department, joining_date: Date.new(2026, 1, 1))
     assert_not employee.valid?
     assert_includes employee.errors[:country], "must exist"
   end
 
   test "invalid without department" do
-    employee = Employee.new(employee_number: "EMP103", name: "Max", country: @country)
+    employee = Employee.new(employee_number: "EMP103", name: "Max", country: @country, joining_date: Date.new(2026, 1, 1))
     assert_not employee.valid?
     assert_includes employee.errors[:department], "must exist"
   end
 
+  test "invalid without joining date" do
+    employee = Employee.new(employee_number: "EMP103", name: "Max", country: @country, department: @department)
+    assert_not employee.valid?
+    assert_includes employee.errors[:joining_date], "can't be blank"
+  end
+
   test "enforces unique employee_number" do
-    Employee.create!(employee_number: "EMP100", name: "First", country: @country, department: @department)
-    duplicate = Employee.new(employee_number: "EMP100", name: "Second", country: @country, department: @department)
+    Employee.create!(employee_number: "EMP100", name: "First", country: @country, department: @department, joining_date: Date.new(2026, 1, 1))
+    duplicate = Employee.new(employee_number: "EMP100", name: "Second", country: @country, department: @department, joining_date: Date.new(2026, 1, 1))
     assert_not duplicate.valid?
     assert_includes duplicate.errors[:employee_number], "has already been taken"
   end
 
   test "cascades deletion to salaries, attendances, and monthly_salaries" do
-    employee = Employee.create!(employee_number: "EMP200", name: "Cascade Test", country: @country, department: @department)
+    employee = Employee.create!(employee_number: "EMP200", name: "Cascade Test", country: @country, department: @department, joining_date: Date.new(2026, 1, 1))
     period = Period.create!(year: 2026, month: 1)
     employee.salaries.create!(annual_salary: 100_000, effective_from: Date.new(2026, 1, 1))
     employee.attendances.create!(period: period, working_days: 20, present_days: 20)

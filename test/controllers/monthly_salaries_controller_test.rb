@@ -24,7 +24,7 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "correct salary and payable amount are calculated and rounded" do
-    emp = Employee.create!(employee_number: "EMP101", name: "Alice", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP101", name: "Alice", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     # Annual salary: $65,000.00
     # Monthly base = 65000 / 12 = 5416.6666... -> rounded to 5416.67
     # Working days = 22, Present days = 20
@@ -49,7 +49,7 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "applicable salary is selected according to the first-day-of-month rule" do
-    emp = Employee.create!(employee_number: "EMP102", name: "Bob", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP102", name: "Bob", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     # 1. Salary effective earlier: $60,000
     emp.salaries.create!(annual_salary: 60_000, effective_from: Date.new(2025, 1, 1))
@@ -70,8 +70,8 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "missing attendance prevents partial creation" do
-    emp1 = Employee.create!(employee_number: "EMP201", name: "User 1", country: @us, department: @engineering)
-    emp2 = Employee.create!(employee_number: "EMP202", name: "User 2", country: @us, department: @engineering)
+    emp1 = Employee.create!(employee_number: "EMP201", name: "User 1", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    emp2 = Employee.create!(employee_number: "EMP202", name: "User 2", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     emp1.salaries.create!(annual_salary: 50_000, effective_from: Date.new(2026, 1, 1))
     emp2.salaries.create!(annual_salary: 50_000, effective_from: Date.new(2026, 1, 1))
@@ -91,8 +91,8 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "missing applicable salary prevents partial creation" do
-    emp1 = Employee.create!(employee_number: "EMP301", name: "User 1", country: @us, department: @engineering)
-    emp2 = Employee.create!(employee_number: "EMP302", name: "User 2", country: @us, department: @engineering)
+    emp1 = Employee.create!(employee_number: "EMP301", name: "User 1", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    emp2 = Employee.create!(employee_number: "EMP302", name: "User 2", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     # emp1 has valid salary; emp2 has no salary records on or before May 1, 2026
     emp1.salaries.create!(annual_salary: 60_000, effective_from: Date.new(2026, 1, 1))
@@ -113,7 +113,7 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "zero working days are handled safely" do
-    emp = Employee.create!(employee_number: "EMP401", name: "User Zero", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP401", name: "User Zero", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     emp.salaries.create!(annual_salary: 48_000, effective_from: Date.new(2026, 1, 1))
 
     period = Period.create!(year: 2026, month: 6)
@@ -129,7 +129,7 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "repeated calculation preserves existing records and creates no duplicates" do
-    emp = Employee.create!(employee_number: "EMP501", name: "User Rep", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP501", name: "User Rep", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     emp.salaries.create!(annual_salary: 60_000, effective_from: Date.new(2026, 1, 1))
 
     period = Period.create!(year: 2026, month: 7)
@@ -155,7 +155,7 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "newly created records have Pending status" do
-    emp = Employee.create!(employee_number: "EMP601", name: "User Pend", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP601", name: "User Pend", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     emp.salaries.create!(annual_salary: 72_000, effective_from: Date.new(2026, 1, 1))
 
     period = Period.create!(year: 2026, month: 8)
@@ -167,8 +167,8 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "currency totals are not combined across different currencies" do
-    emp_us = Employee.create!(employee_number: "EMP701", name: "US Emp", country: @us, department: @engineering)
-    emp_in = Employee.create!(employee_number: "EMP702", name: "IN Emp", country: @in, department: @engineering)
+    emp_us = Employee.create!(employee_number: "EMP701", name: "US Emp", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    emp_in = Employee.create!(employee_number: "EMP702", name: "IN Emp", country: @in, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     emp_us.salaries.create!(annual_salary: 120_000, effective_from: Date.new(2026, 1, 1))
     emp_in.salaries.create!(annual_salary: 1_200_000, effective_from: Date.new(2026, 1, 1))
@@ -194,7 +194,7 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   # ==================================
 
   test "processing changes Pending records to Paid" do
-    emp = Employee.create!(employee_number: "EMP801", name: "Proc Test", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP801", name: "Proc Test", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     emp.salaries.create!(annual_salary: 60_000, effective_from: Date.new(2026, 1, 1))
 
     period = Period.create!(year: 2026, month: 10)
@@ -216,8 +216,8 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "already-Paid records remain unchanged and are not counted as newly processed" do
-    emp1 = Employee.create!(employee_number: "EMP802", name: "User Paid", country: @us, department: @engineering)
-    emp2 = Employee.create!(employee_number: "EMP803", name: "User Pend", country: @us, department: @engineering)
+    emp1 = Employee.create!(employee_number: "EMP802", name: "User Paid", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    emp2 = Employee.create!(employee_number: "EMP803", name: "User Pend", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     period = Period.create!(year: 2026, month: 11)
 
     MonthlySalary.create!(employee: emp1, period: period, monthly_salary: 5000, payable_amount: 5000, status: "Paid")
@@ -233,7 +233,7 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "salary amounts are unchanged during processing" do
-    emp = Employee.create!(employee_number: "EMP804", name: "User Unchanged", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP804", name: "User Unchanged", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     period = Period.create!(year: 2026, month: 12)
 
     MonthlySalary.create!(
@@ -253,7 +253,7 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "repeated processing is safe and reports zero newly processed records when appropriate" do
-    emp = Employee.create!(employee_number: "EMP805", name: "User Repeat", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP805", name: "User Repeat", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     period = Period.create!(year: 2026, month: 1)
     MonthlySalary.create!(employee: emp, period: period, monthly_salary: 5000, payable_amount: 5000, status: "Paid")
 
@@ -264,7 +264,7 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "only records for the selected period are processed" do
-    emp = Employee.create!(employee_number: "EMP806", name: "User MultiPeriod", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP806", name: "User MultiPeriod", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     p_target = Period.create!(year: 2025, month: 5)
     p_other = Period.create!(year: 2025, month: 6)
 
@@ -287,8 +287,8 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "currency totals are reported separately upon processing" do
-    emp_us = Employee.create!(employee_number: "EMP807", name: "US Emp", country: @us, department: @engineering)
-    emp_in = Employee.create!(employee_number: "EMP808", name: "IN Emp", country: @in, department: @engineering)
+    emp_us = Employee.create!(employee_number: "EMP807", name: "US Emp", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    emp_in = Employee.create!(employee_number: "EMP808", name: "IN Emp", country: @in, department: @engineering, joining_date: Date.new(2026, 1, 1))
     period = Period.create!(year: 2025, month: 8)
 
     MonthlySalary.create!(employee: emp_us, period: period, monthly_salary: 5000, payable_amount: 5000, status: "Pending")
@@ -303,7 +303,7 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a database failure rolls back the operation" do
-    emp = Employee.create!(employee_number: "EMP809", name: "Fail Test", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP809", name: "Fail Test", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     period = Period.create!(year: 2025, month: 9)
     MonthlySalary.create!(employee: emp, period: period, monthly_salary: 5000, payable_amount: 5000, status: "Pending")
 
@@ -381,7 +381,7 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "calculate salaries action redirects with the selected year and month in the URL" do
-    emp = Employee.create!(employee_number: "EMP_MS_SYNC1", name: "Sync Calc", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP_MS_SYNC1", name: "Sync Calc", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     emp.salaries.create!(annual_salary: 60_000, effective_from: Date.new(2025, 1, 1))
     period = Period.create!(year: 2025, month: 6)
     Attendance.create!(employee: emp, period: period, working_days: 20, present_days: 20)
@@ -394,7 +394,7 @@ class MonthlySalariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "process salaries action redirects with the selected year and month in the URL" do
-    emp = Employee.create!(employee_number: "EMP_MS_SYNC2", name: "Sync Proc", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP_MS_SYNC2", name: "Sync Proc", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     period = Period.create!(year: 2025, month: 4)
     MonthlySalary.create!(employee: emp, period: period, monthly_salary: 5000, payable_amount: 5000, status: "Pending")
 

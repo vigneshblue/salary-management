@@ -15,7 +15,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
       employee_number: "EMP001",
       name: "John Smith",
       country: @us,
-      department: @engineering
+      department: @engineering,
+      joining_date: Date.new(2026, 1, 1)
     )
 
     get employees_url
@@ -31,7 +32,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
       employee_number: "EMP002",
       name: "Arun Kumar",
       country: @in,
-      department: @engineering
+      department: @engineering,
+      joining_date: Date.new(2026, 1, 1)
     )
     employee.salaries.create!(
       annual_salary: 1_200_000,
@@ -52,7 +54,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
       employee_number: "EMP003",
       name: "Priya Patel",
       country: @in,
-      department: @product
+      department: @product,
+      joining_date: Date.new(2026, 1, 1)
     )
 
     # 1. Historical salary
@@ -84,7 +87,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
       employee_number: "EMP004",
       name: "Emily Davis",
       country: @uk,
-      department: @engineering
+      department: @engineering,
+      joining_date: Date.new(2026, 1, 1)
     )
 
     get employees_url
@@ -98,7 +102,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
         employee_number: format("EMP%04d", i + 1),
         name: "Worker #{i + 1}",
         country: @us,
-        department: @engineering
+        department: @engineering,
+        joining_date: Date.new(2026, 1, 1)
       )
       emp.salaries.create!(annual_salary: 50_000 + (i * 1000), effective_from: Date.new(2026, 1, 1))
     end
@@ -136,7 +141,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
         employee_number: format("EMP%04d", i + 1),
         name: "Employee #{i + 1}",
         country: (i.even? ? @us : @in),
-        department: (i.even? ? @engineering : @product)
+        department: (i.even? ? @engineering : @product),
+        joining_date: Date.new(2026, 1, 1)
       )
       emp.salaries.create!(annual_salary: 60_000, effective_from: Date.current - 1.year)
       emp.salaries.create!(annual_salary: 70_000, effective_from: Date.current - 1.month)
@@ -187,8 +193,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   # =====================
 
   test "search by employee number returns matching employees only" do
-    emp_a = Employee.create!(employee_number: "EMP100", name: "Alice Adams", country: @us, department: @engineering)
-    Employee.create!(employee_number: "EMP200", name: "Bob Barnes", country: @in, department: @product)
+    emp_a = Employee.create!(employee_number: "EMP100", name: "Alice Adams", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    Employee.create!(employee_number: "EMP200", name: "Bob Barnes", country: @in, department: @product, joining_date: Date.new(2026, 1, 1))
 
     get employees_url, params: { q: "EMP100" }
     assert_response :success
@@ -198,8 +204,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "search by employee name returns matching employees only" do
-    Employee.create!(employee_number: "EMP101", name: "Alice Adams", country: @us, department: @engineering)
-    Employee.create!(employee_number: "EMP102", name: "Bob Barnes", country: @in, department: @product)
+    Employee.create!(employee_number: "EMP101", name: "Alice Adams", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    Employee.create!(employee_number: "EMP102", name: "Bob Barnes", country: @in, department: @product, joining_date: Date.new(2026, 1, 1))
 
     get employees_url, params: { q: "Alice" }
     assert_response :success
@@ -208,7 +214,7 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "search is case insensitive" do
-    Employee.create!(employee_number: "EMP103", name: "Charlie Chen", country: @us, department: @engineering)
+    Employee.create!(employee_number: "EMP103", name: "Charlie Chen", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     get employees_url, params: { q: "charlie chen" }
     assert_response :success
@@ -216,8 +222,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "partial search matches both name and employee number" do
-    Employee.create!(employee_number: "EMP104", name: "David Dean", country: @us, department: @engineering)
-    Employee.create!(employee_number: "EMP105", name: "Eva Evans", country: @in, department: @product)
+    Employee.create!(employee_number: "EMP104", name: "David Dean", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    Employee.create!(employee_number: "EMP105", name: "Eva Evans", country: @in, department: @product, joining_date: Date.new(2026, 1, 1))
 
     get employees_url, params: { q: "EMP10" }
     assert_response :success
@@ -227,8 +233,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "filter by country returns only employees from that country" do
-    Employee.create!(employee_number: "EMP110", name: "Frank Ford", country: @us, department: @engineering)
-    Employee.create!(employee_number: "EMP111", name: "Grace Gupta", country: @in, department: @product)
+    Employee.create!(employee_number: "EMP110", name: "Frank Ford", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    Employee.create!(employee_number: "EMP111", name: "Grace Gupta", country: @in, department: @product, joining_date: Date.new(2026, 1, 1))
 
     get employees_url, params: { country_id: @us.id }
     assert_response :success
@@ -237,8 +243,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "filter by department returns only employees in that department" do
-    Employee.create!(employee_number: "EMP120", name: "Hank Hill", country: @us, department: @engineering)
-    Employee.create!(employee_number: "EMP121", name: "Iris Ingram", country: @us, department: @product)
+    Employee.create!(employee_number: "EMP120", name: "Hank Hill", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    Employee.create!(employee_number: "EMP121", name: "Iris Ingram", country: @us, department: @product, joining_date: Date.new(2026, 1, 1))
 
     get employees_url, params: { department_id: @engineering.id }
     assert_response :success
@@ -247,8 +253,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "search and country filter work together" do
-    Employee.create!(employee_number: "EMP130", name: "Jack Jones", country: @us, department: @engineering)
-    Employee.create!(employee_number: "EMP131", name: "Jack Kumar", country: @in, department: @engineering)
+    Employee.create!(employee_number: "EMP130", name: "Jack Jones", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    Employee.create!(employee_number: "EMP131", name: "Jack Kumar", country: @in, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     get employees_url, params: { q: "Jack", country_id: @us.id }
     assert_response :success
@@ -258,8 +264,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "search and department filter work together" do
-    Employee.create!(employee_number: "EMP140", name: "Kate King", country: @us, department: @engineering)
-    Employee.create!(employee_number: "EMP141", name: "Kate Lee", country: @us, department: @product)
+    Employee.create!(employee_number: "EMP140", name: "Kate King", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    Employee.create!(employee_number: "EMP141", name: "Kate Lee", country: @us, department: @product, joining_date: Date.new(2026, 1, 1))
 
     get employees_url, params: { q: "Kate", department_id: @engineering.id }
     assert_response :success
@@ -269,9 +275,9 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "all three filters work combined" do
-    Employee.create!(employee_number: "EMP150", name: "Liam Lee", country: @us, department: @engineering)
-    Employee.create!(employee_number: "EMP151", name: "Liam Lin", country: @in, department: @engineering)
-    Employee.create!(employee_number: "EMP152", name: "Liam Long", country: @us, department: @product)
+    Employee.create!(employee_number: "EMP150", name: "Liam Lee", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    Employee.create!(employee_number: "EMP151", name: "Liam Lin", country: @in, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    Employee.create!(employee_number: "EMP152", name: "Liam Long", country: @us, department: @product, joining_date: Date.new(2026, 1, 1))
 
     get employees_url, params: { q: "Liam", country_id: @us.id, department_id: @engineering.id }
     assert_response :success
@@ -298,7 +304,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
         employee_number: format("SRCH%04d", i + 1),
         name: "Searchable Person #{i + 1}",
         country: @us,
-        department: @engineering
+        department: @engineering,
+        joining_date: Date.new(2026, 1, 1)
       )
     end
 
@@ -323,7 +330,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
         employee_number: format("FILT%04d", i + 1),
         name: "Filter Person #{i + 1}",
         country: @us,
-        department: @engineering
+        department: @engineering,
+        joining_date: Date.new(2026, 1, 1)
       )
     end
 
@@ -350,7 +358,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
       employee_number: "EMP999",
       name: "Detail Tester",
       country: @us,
-      department: @engineering
+      department: @engineering,
+      joining_date: Date.new(2026, 1, 1)
     )
 
     get employee_url(employee)
@@ -366,7 +375,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
       employee_number: "EMP888",
       name: "Salary Tester",
       country: @in,
-      department: @product
+      department: @product,
+      joining_date: Date.new(2026, 1, 1)
     )
 
     employee.salaries.create!(annual_salary: 800_000, effective_from: Date.new(2023, 1, 1))
@@ -394,7 +404,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
       employee_number: "EMP777",
       name: "No Salary Tester",
       country: @uk,
-      department: @engineering
+      department: @engineering,
+      joining_date: Date.new(2026, 1, 1)
     )
 
     get employee_url(employee)
@@ -413,7 +424,8 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
       employee_number: "EMP666",
       name: "Performance Tester",
       country: @us,
-      department: @engineering
+      department: @engineering,
+      joining_date: Date.new(2026, 1, 1)
     )
     employee.salaries.create!(annual_salary: 60_000, effective_from: Date.current - 1.year)
     employee.salaries.create!(annual_salary: 70_000, effective_from: Date.current - 1.month)
@@ -474,6 +486,7 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
           name: "Grace Hopper",
           country_id: @us.id,
           department_id: @engineering.id,
+          joining_date: Date.new(2026, 1, 1),
           initial_salary: "120000",
           salary_effective_from: Date.new(2026, 1, 1).to_s
         }
@@ -586,14 +599,14 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   # =====================
 
   test "show page has Edit Employee button linking to edit form" do
-    emp = Employee.create!(employee_number: "EMP510", name: "Ada Lovelace", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP510", name: "Ada Lovelace", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     get employee_url(emp)
     assert_response :success
     assert_select "a.btn-primary[href='#{edit_employee_path(emp)}']", text: "Edit Employee"
   end
 
   test "edit form renders existing employee values" do
-    emp = Employee.create!(employee_number: "EMP511", name: "Katherine Johnson", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP511", name: "Katherine Johnson", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     emp.salaries.create!(annual_salary: 80_000, effective_from: Date.new(2026, 1, 1))
 
     get edit_employee_url(emp)
@@ -606,7 +619,7 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "updating employee details without salary input does not create a Salary record" do
-    emp = Employee.create!(employee_number: "EMP512", name: "Old Name", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP512", name: "Old Name", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     initial_sal = emp.salaries.create!(annual_salary: 80_000, effective_from: Date.new(2026, 1, 1))
 
     assert_no_difference "Salary.count" do
@@ -632,7 +645,7 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "submitting a salary change creates a new record and preserves existing history" do
-    emp = Employee.create!(employee_number: "EMP513", name: "Salary Raiser", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP513", name: "Salary Raiser", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     old_sal = emp.salaries.create!(annual_salary: 70_000, effective_from: Date.new(2025, 1, 1))
 
     assert_difference "Salary.count", 1 do
@@ -664,7 +677,7 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "future-effective salaries do not replace the current salary prematurely" do
-    emp = Employee.create!(employee_number: "EMP514", name: "Future Raiser", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP514", name: "Future Raiser", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     emp.salaries.create!(annual_salary: 60_000, effective_from: Date.current - 6.months)
 
     # Schedule raise in 3 months
@@ -694,7 +707,7 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "duplicate effective dates on salary change are handled gracefully" do
-    emp = Employee.create!(employee_number: "EMP515", name: "Dup Date Tester", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP515", name: "Dup Date Tester", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     emp.salaries.create!(annual_salary: 50_000, effective_from: Date.new(2026, 1, 1))
 
     assert_no_difference "Salary.count" do
@@ -725,7 +738,7 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "failed updates do not leave partially saved employee or salary changes" do
-    emp = Employee.create!(employee_number: "EMP516", name: "Transactional Test", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP516", name: "Transactional Test", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     emp.salaries.create!(annual_salary: 50_000, effective_from: Date.new(2026, 1, 1))
 
     # We try to change name to "Renamed Person" but pass an invalid salary amount (-100)
@@ -753,7 +766,7 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   # =====================
 
   test "show renders attendance records with correct period, working days, present days, and absent days" do
-    emp = Employee.create!(employee_number: "EMP601", name: "Ada Lovelace", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP601", name: "Ada Lovelace", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     p1 = Period.create!(year: 2026, month: 1)
     p2 = Period.create!(year: 2026, month: 2)
 
@@ -782,7 +795,7 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "show renders monthly salary records with correct period, amounts, and payment status badges" do
-    emp = Employee.create!(employee_number: "EMP602", name: "Grace Hopper", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP602", name: "Grace Hopper", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     p1 = Period.create!(year: 2026, month: 1)
     p2 = Period.create!(year: 2026, month: 2)
 
@@ -819,7 +832,7 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "monthly salary amounts are formatted using employee country currency" do
-    emp_in = Employee.create!(employee_number: "EMP603", name: "Vikram Sarabhai", country: @in, department: @engineering)
+    emp_in = Employee.create!(employee_number: "EMP603", name: "Vikram Sarabhai", country: @in, department: @engineering, joining_date: Date.new(2026, 1, 1))
     p = Period.create!(year: 2026, month: 3)
     ms = emp_in.monthly_salaries.create!(
       period: p,
@@ -838,7 +851,7 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "both attendance and monthly salary histories are ordered newest period first" do
-    emp = Employee.create!(employee_number: "EMP604", name: "Ordering Tester", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP604", name: "Ordering Tester", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     p_2025_12 = Period.create!(year: 2025, month: 12)
     p_2026_01 = Period.create!(year: 2026, month: 1)
     p_2026_03 = Period.create!(year: 2026, month: 3)
@@ -865,7 +878,7 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "renders clear empty state messages when attendance or monthly salary records do not exist" do
-    emp = Employee.create!(employee_number: "EMP605", name: "Fresh Employee", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP605", name: "Fresh Employee", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     get employee_url(emp)
     assert_response :success
@@ -875,7 +888,7 @@ class EmployeesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "existing employee details, salary history, and Edit Employee button remain intact" do
-    emp = Employee.create!(employee_number: "EMP606", name: "Legacy Checker", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP606", name: "Legacy Checker", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     emp.salaries.create!(annual_salary: 80_000, effective_from: Date.new(2026, 1, 1))
 
     get employee_url(emp)

@@ -11,8 +11,8 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "dashboard renders successfully on root path and shows organization metrics" do
-    Employee.create!(employee_number: "EMP001", name: "Alice", country: @us, department: @engineering)
-    Employee.create!(employee_number: "EMP002", name: "Bob", country: @in, department: @sales)
+    Employee.create!(employee_number: "EMP001", name: "Alice", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    Employee.create!(employee_number: "EMP002", name: "Bob", country: @in, department: @sales, joining_date: Date.new(2026, 1, 1))
 
     get root_url
     assert_response :success
@@ -41,8 +41,8 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "headcount charts render SVG elements" do
-    Employee.create!(employee_number: "EMP001", name: "Alice", country: @us, department: @engineering)
-    Employee.create!(employee_number: "EMP002", name: "Bob", country: @in, department: @sales)
+    Employee.create!(employee_number: "EMP001", name: "Alice", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    Employee.create!(employee_number: "EMP002", name: "Bob", country: @in, department: @sales, joining_date: Date.new(2026, 1, 1))
 
     get root_url
     assert_response :success
@@ -59,8 +59,8 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "salary distribution chart renders with selected reporting currency labels" do
-    emp_us = Employee.create!(employee_number: "EMP001", name: "Alice", country: @us, department: @engineering)
-    emp_in = Employee.create!(employee_number: "EMP002", name: "Bob", country: @in, department: @sales)
+    emp_us = Employee.create!(employee_number: "EMP001", name: "Alice", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    emp_in = Employee.create!(employee_number: "EMP002", name: "Bob", country: @in, department: @sales, joining_date: Date.new(2026, 1, 1))
 
     emp_us.salaries.create!(annual_salary: 100_000, effective_from: Date.current - 1.month)
     emp_in.salaries.create!(annual_salary: 1_500_000, effective_from: Date.current - 1.month)
@@ -79,7 +79,7 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "payroll trend chart renders with period data" do
-    emp = Employee.create!(employee_number: "EMP001", name: "Alice", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP001", name: "Alice", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     p1 = Period.create!(year: 2026, month: 1)
     MonthlySalary.create!(employee: emp, period: period = p1, monthly_salary: 5000, payable_amount: 5000, status: "Paid")
 
@@ -91,7 +91,7 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "salary metrics select latest salary effective on or before reporting date" do
-    emp = Employee.create!(employee_number: "EMP003", name: "Charlie", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP003", name: "Charlie", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     # Historical salary: $50,000
     emp.salaries.create!(annual_salary: 50_000, effective_from: Date.current - 2.years)
@@ -110,9 +110,9 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "department breakdown reports converted values in selected currency" do
-    emp_us1 = Employee.create!(employee_number: "EMP004", name: "US 1", country: @us, department: @engineering)
-    emp_us2 = Employee.create!(employee_number: "EMP005", name: "US 2", country: @us, department: @engineering)
-    emp_in = Employee.create!(employee_number: "EMP006", name: "IN 1", country: @in, department: @engineering)
+    emp_us1 = Employee.create!(employee_number: "EMP004", name: "US 1", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    emp_us2 = Employee.create!(employee_number: "EMP005", name: "US 2", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    emp_in = Employee.create!(employee_number: "EMP006", name: "IN 1", country: @in, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     emp_us1.salaries.create!(annual_salary: 100_000, effective_from: Date.current - 1.month)
     emp_us2.salaries.create!(annual_salary: 120_000, effective_from: Date.current - 1.month)
@@ -139,8 +139,8 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "monthly payroll insights converts Paid and Pending totals into selected currency" do
-    emp1 = Employee.create!(employee_number: "EMP007", name: "User Paid", country: @us, department: @engineering)
-    emp2 = Employee.create!(employee_number: "EMP008", name: "User Pending", country: @us, department: @engineering)
+    emp1 = Employee.create!(employee_number: "EMP007", name: "User Paid", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    emp2 = Employee.create!(employee_number: "EMP008", name: "User Pending", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     period = Period.create!(year: 2026, month: 3)
     MonthlySalary.create!(employee: emp1, period: period, monthly_salary: 5000, payable_amount: 4500, status: "Paid")
@@ -162,7 +162,7 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "recent monthly payroll trends displays historical cycles" do
-    emp = Employee.create!(employee_number: "EMP009", name: "User Trend", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP009", name: "User Trend", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     p1 = Period.create!(year: 2026, month: 1)
     p2 = Period.create!(year: 2026, month: 2)
 
@@ -204,7 +204,7 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "selecting another currency updates department and monthly payroll sections" do
-    emp = Employee.create!(employee_number: "EMP020", name: "Currency Switcher", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP020", name: "Currency Switcher", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     emp.salaries.create!(annual_salary: 83_000, effective_from: Date.current - 1.month)
     period = Period.create!(year: 2026, month: 4)
     MonthlySalary.create!(employee: emp, period: period, monthly_salary: 8300, payable_amount: 8300, status: "Paid")
@@ -229,8 +229,8 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
   test "department min, avg, and max use converted values before calculating aggregates" do
     # US employee: 83,000 USD (at 83 INR/USD => 6,889,000 INR)
     # IN employee: 3,444,500 INR
-    emp1 = Employee.create!(employee_number: "EMP021", name: "US Dev", country: @us, department: @engineering)
-    emp2 = Employee.create!(employee_number: "EMP022", name: "IN Dev", country: @in, department: @engineering)
+    emp1 = Employee.create!(employee_number: "EMP021", name: "US Dev", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    emp2 = Employee.create!(employee_number: "EMP022", name: "IN Dev", country: @in, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     emp1.salaries.create!(annual_salary: 83_000, effective_from: Date.current - 1.month)
     emp2.salaries.create!(annual_salary: 3_444_500, effective_from: Date.current - 1.month)
@@ -248,8 +248,8 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "monthly paid and pending totals use converted values without altering employee counts" do
-    emp1 = Employee.create!(employee_number: "EMP023", name: "US Paid", country: @us, department: @engineering)
-    emp2 = Employee.create!(employee_number: "EMP024", name: "IN Pending", country: @in, department: @engineering)
+    emp1 = Employee.create!(employee_number: "EMP023", name: "US Paid", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    emp2 = Employee.create!(employee_number: "EMP024", name: "IN Pending", country: @in, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     period = Period.create!(year: 2026, month: 5)
     # 100 USD paid (100 * 83 = 8300 INR)
@@ -295,9 +295,9 @@ class DashboardsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "annual salary distribution by country uses converted values in selected currency and excludes future-effective salaries" do
-    emp_us1 = Employee.create!(employee_number: "EMP030", name: "US Worker 1", country: @us, department: @engineering)
-    emp_us2 = Employee.create!(employee_number: "EMP031", name: "US Worker 2", country: @us, department: @engineering)
-    emp_in = Employee.create!(employee_number: "EMP032", name: "IN Worker", country: @in, department: @sales)
+    emp_us1 = Employee.create!(employee_number: "EMP030", name: "US Worker 1", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    emp_us2 = Employee.create!(employee_number: "EMP031", name: "US Worker 2", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    emp_in = Employee.create!(employee_number: "EMP032", name: "IN Worker", country: @in, department: @sales, joining_date: Date.new(2026, 1, 1))
 
     # US Worker 1: 50,000 USD (past) -> 80,000 USD (current) -> 150,000 USD (future)
     emp_us1.salaries.create!(annual_salary: 50_000, effective_from: Date.current - 1.year)

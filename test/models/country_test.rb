@@ -34,7 +34,7 @@ class CountryTest < ActiveSupport::TestCase
   test "restricts deletion when employees exist" do
     country = Country.create!(name: "United States", code: "US", currency: "USD")
     department = Department.create!(name: "Engineering")
-    country.employees.create!(name: "John Doe", employee_number: "EMP001", department: department)
+    country.employees.create!(name: "John Doe", employee_number: "EMP001", department: department, joining_date: Date.new(2026, 1, 1))
 
     assert_no_difference "Country.count" do
       country.destroy

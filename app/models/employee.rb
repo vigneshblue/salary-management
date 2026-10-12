@@ -26,4 +26,3 @@ class Employee < ApplicationRecord
     current_salary(as_of)&.annual_salary
   end
 end
-

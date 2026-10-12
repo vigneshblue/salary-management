@@ -42,7 +42,7 @@ class AttendancesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "period is created or reused correctly upon generation" do
-    Employee.create!(employee_number: "EMP01", name: "Alice", country: @us, department: @engineering)
+    Employee.create!(employee_number: "EMP01", name: "Alice", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     assert_difference("Period.count", 1) do
       post attendances_url, params: { year: 2026, month: 7 }
@@ -63,7 +63,8 @@ class AttendancesControllerTest < ActionDispatch::IntegrationTest
         employee_number: "EMP#{i + 10}",
         name: "Worker #{i + 1}",
         country: @us,
-        department: @engineering
+        department: @engineering,
+        joining_date: Date.new(2026, 1, 1)
       )
     end
 
@@ -97,7 +98,7 @@ class AttendancesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "present days are within the range 0..working_days" do
-    emp = Employee.create!(employee_number: "EMP99", name: "Zara", country: @us, department: @engineering)
+    emp = Employee.create!(employee_number: "EMP99", name: "Zara", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     post attendances_url, params: { year: 2026, month: 4 }
     period = Period.find_by!(year: 2026, month: 4)
@@ -111,8 +112,8 @@ class AttendancesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "running generation twice does not create duplicates or overwrite existing records" do
-    emp1 = Employee.create!(employee_number: "EMP101", name: "User 1", country: @us, department: @engineering)
-    emp2 = Employee.create!(employee_number: "EMP102", name: "User 2", country: @us, department: @engineering)
+    emp1 = Employee.create!(employee_number: "EMP101", name: "User 1", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
+    emp2 = Employee.create!(employee_number: "EMP102", name: "User 2", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     post attendances_url, params: { year: 2026, month: 5 }
     period = Period.find_by!(year: 2026, month: 5)
@@ -143,11 +144,11 @@ class AttendancesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "partially existing attendance generates only missing employee records" do
-    emp1 = Employee.create!(employee_number: "EMP201", name: "User 1", country: @us, department: @engineering)
+    emp1 = Employee.create!(employee_number: "EMP201", name: "User 1", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
     period = Period.create!(year: 2026, month: 8)
     Attendance.create!(employee: emp1, period: period, working_days: 21, present_days: 19)
 
-    emp2 = Employee.create!(employee_number: "EMP202", name: "User 2", country: @us, department: @engineering)
+    emp2 = Employee.create!(employee_number: "EMP202", name: "User 2", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     assert_difference("Attendance.count", 1) do
       post attendances_url, params: { year: 2026, month: 8 }
@@ -216,7 +217,7 @@ class AttendancesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "attendance generation redirects with the selected year and month in the URL" do
-    Employee.create!(employee_number: "EMP_SYNC1", name: "Sync Test", country: @us, department: @engineering)
+    Employee.create!(employee_number: "EMP_SYNC1", name: "Sync Test", country: @us, department: @engineering, joining_date: Date.new(2026, 1, 1))
 
     post attendances_url, params: { year: 2025, month: 6 }
     assert_redirected_to attendances_path(year: "2025", month: "6")
