@@ -43,12 +43,15 @@ class SalaryCalculator
       )
     end
 
-    # First day of the selected month
-    as_of_date = Date.new(@year_int, @month_int, 1)
+    # First day of the selected month — used for the applicable salary rule.
+    as_of_date  = Date.new(@year_int, @month_int, 1)
+    month_end   = as_of_date.end_of_month
 
     # 1. Check attendance for all employees
-    # All employees in the system must have an Attendance record for this period
-    attendances_by_employee_id = period.attendances.pluck(:employee_id, :working_days, :present_days).to_h { |id, wd, pd| [ id, [ wd, pd ] ] }
+    # All employees in the system must have an Attendance record for this period.
+    attendances_by_employee_id = period.attendances
+                                       .pluck(:employee_id, :working_days, :present_days)
+                                       .to_h { |id, wd, pd| [ id, [ wd, pd ] ] }
 
     missing_attendance_count = total_employees - attendances_by_employee_id.size
     if missing_attendance_count.positive?
@@ -59,16 +62,24 @@ class SalaryCalculator
       )
     end
 
-    # 2. Check applicable salary records for all employees
-    # For each employee, select latest salary on or before as_of_date
-    # SQL query to get latest applicable salary per employee
+    # 2. Check applicable salary records for all employees.
+    # For each employee, select the latest salary with effective_from <= as_of_date.
+    # Employees who joined after the month ends have no applicable salary (and no attendance).
+    # However, to guard against legacy data, we also check joining dates independently.
     latest_salaries_query = Salary.where("effective_from <= ?", as_of_date)
                                   .select("DISTINCT ON (employee_id) employee_id, annual_salary, effective_from")
                                   .order("employee_id, effective_from DESC")
 
     salaries_by_employee_id = latest_salaries_query.to_h { |s| [ s.employee_id, s.annual_salary ] }
 
-    missing_salary_count = total_employees - salaries_by_employee_id.size
+    # Fetch joining dates for all employees in one query.
+    joining_dates_by_id = Employee.pluck(:id, :joining_date).to_h
+
+    # Exclude employees who joined after this payroll month from the salary check.
+    # They will receive a zero-payable record (their attendance will have 0 eligible days).
+    # We only count employees who should have an applicable salary.
+    employees_needing_salary = joining_dates_by_id.count { |_id, jd| jd.nil? || jd <= month_end }
+    missing_salary_count = employees_needing_salary - salaries_by_employee_id.size
     if missing_salary_count.positive?
       period_label = "#{Date::MONTHNAMES[@month_int]} #{@year_int}"
       return Result.new(
@@ -77,7 +88,7 @@ class SalaryCalculator
       )
     end
 
-    # 3. Check existing MonthlySalary records for idempotency
+    # 3. Check existing MonthlySalary records for idempotency.
     existing_employee_ids = MonthlySalary.where(period_id: period.id).pluck(:employee_id).to_set
     preserved_count = existing_employee_ids.size
 
@@ -105,19 +116,28 @@ class SalaryCalculator
         batch.each do |employee|
           next if existing_employee_ids.include?(employee.id)
 
+          joining_date = joining_dates_by_id[employee.id]
           annual_salary = salaries_by_employee_id[employee.id]
           working_days, present_days = attendances_by_employee_id[employee.id]
+
+          # If this employee joined after the month ends they have no annual_salary
+          # in the map. Treat them as zero-payable (eligible_days = 0 from attendance).
+          # We still create a MonthlySalary record (with payable = 0) so the period
+          # is considered fully calculated and salary processing can proceed.
+          if joining_date && joining_date > month_end
+            annual_salary ||= BigDecimal("0")
+          end
 
           monthly_base, payable = compute_salary_amounts(annual_salary, working_days, present_days)
 
           records_to_insert << {
-            employee_id: employee.id,
-            period_id: period.id,
+            employee_id:    employee.id,
+            period_id:      period.id,
             monthly_salary: monthly_base,
             payable_amount: payable,
-            status: MonthlySalary::STATUS_PENDING,
-            created_at: now,
-            updated_at: now
+            status:         MonthlySalary::STATUS_PENDING,
+            created_at:     now,
+            updated_at:     now
           }
         end
 
@@ -147,15 +167,15 @@ class SalaryCalculator
   end
 
   def compute_salary_amounts(annual_salary, working_days, present_days)
+    # Employees who joined after the month ends have no salary; record zero.
     annual_dec = BigDecimal(annual_salary.to_s)
-    # monthly_base_salary = annual_salary / 12
-    # Round to 2 decimal places with HALF_UP
+    # monthly_base_salary = annual_salary / 12, rounded to 2 dp with HALF_UP.
     monthly_base = (annual_dec / BigDecimal("12")).round(2, :half_up)
 
     payable = if working_days.to_i <= 0 || present_days.to_i <= 0
       BigDecimal("0.00")
     else
-      # payable_salary = monthly_base_salary * present_days / working_days
+      # payable_salary = monthly_base * present_days / eligible_working_days
       ((monthly_base * BigDecimal(present_days.to_s)) / BigDecimal(working_days.to_s)).round(2, :half_up)
     end
 
@@ -168,7 +188,7 @@ class SalaryCalculator
     error = AttendanceGenerator.validate_period(@year, @month)
     return error if error
 
-    @year_int = @year.to_s.strip.to_i
+    @year_int  = @year.to_s.strip.to_i
     @month_int = @month.to_s.strip.to_i
 
     nil

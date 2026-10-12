@@ -131,45 +131,35 @@ country_allocations.each do |alloc|
     salary_variation = ((c_idx % 21) - 10) * alloc[:salary_step]
     current_annual_salary = [ alloc[:base_salary] + salary_variation, alloc[:base_salary] / 2 ].max
 
-    # Blueprint salary history for this employee
-    # History tier: based on tenure cycle
-    tenure_tier = current_emp_idx % 3 # 0: 3 salaries, 1: 2 salaries, 2: 1 salary
+    # Blueprint salary history for this employee.
+    # Effective dates are constrained to be >= joining_date so no salary record
+    # pre-dates the employee's hire. Revisions are emitted only for milestone
+    # dates that fall on or after joining_date.
+    rev_2024 = Date.new(2024, 1, 1)
+    rev_2025 = Date.new(2025, 1, 1)
+    rev_2026 = Date.new(2026, 1, 1)
 
     salaries = []
-    case tenure_tier
-    when 0
-      # 3 revisions: 2024, 2025, 2026
-      salaries << {
-        annual_salary: (current_annual_salary * 0.82).round(-2),
-        effective_from: Date.new(2024, 1, 1)
-      }
-      salaries << {
-        annual_salary: (current_annual_salary * 0.91).round(-2),
-        effective_from: Date.new(2025, 1, 1)
-      }
-      salaries << {
-        annual_salary: current_annual_salary.round(-2),
-        effective_from: Date.new(2026, 1, 1)
-      }
-    when 1
-      # 2 revisions: 2025, 2026
-      salaries << {
-        annual_salary: (current_annual_salary * 0.90).round(-2),
-        effective_from: Date.new(2025, 1, 1)
-      }
-      salaries << {
-        annual_salary: current_annual_salary.round(-2),
-        effective_from: Date.new(2026, 1, 1)
-      }
+
+    if joining_date <= rev_2024
+      # Joined on or before 2024-01-01 → 3 revisions
+      salaries << { annual_salary: (current_annual_salary * 0.82).round(-2), effective_from: rev_2024 }
+      salaries << { annual_salary: (current_annual_salary * 0.91).round(-2), effective_from: rev_2025 }
+      salaries << { annual_salary: current_annual_salary.round(-2),          effective_from: rev_2026 }
+    elsif joining_date <= rev_2025
+      # Joined between 2024-01-02 and 2025-01-01 → 2 revisions
+      salaries << { annual_salary: (current_annual_salary * 0.90).round(-2), effective_from: rev_2025 }
+      salaries << { annual_salary: current_annual_salary.round(-2),          effective_from: rev_2026 }
+    elsif joining_date <= rev_2026
+      # Joined between 2025-01-02 and 2026-01-01 → 1 revision at 2026-01-01
+      salaries << { annual_salary: current_annual_salary.round(-2), effective_from: rev_2026 }
     else
-      # 1 current revision: 2026
-      salaries << {
-        annual_salary: current_annual_salary.round(-2),
-        effective_from: Date.new(2026, 1, 1)
-      }
+      # Joined after 2026-01-01 → 1 revision on their joining_date itself
+      salaries << { annual_salary: current_annual_salary.round(-2), effective_from: joining_date }
     end
 
     salary_blueprints << { employee_number: emp_num, salaries: salaries }
+
     current_emp_idx += 1
   end
 end
